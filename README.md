@@ -1,2 +1,5 @@
-# wimloc-app-studio.github.io
-Site de Wimloc App Studio : des applications simples pour toute la famille
+# Wimloc App Studio
+
+Site de Wimloc App Studio : https://wimloc-app-studio.github.io
+
+Fabriqué dans le dépôt Animalix (`outils/site_wimloc.py`, dossier `site/wimloc/`).

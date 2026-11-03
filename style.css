@@ -1,0 +1,95 @@
+/* Wimloc App Studio : couleurs du logo (brun, crème, bleu ciel), lettres rondes comme le logo, sans police chargée d'ailleurs
+   (aucune requête vers un autre site : personne n'est suivi). Une colonne centrée, bandes pleine largeur. */
+:root{--creme:#fdf8ee;--carte:#fffdf8;--brun:#57312a;--brun-doux:#8a6a5e;--ciel:#7dc3f2;--ciel-fonce:#2f7fb8;--trait:#ecdfcb;
+  --rond:ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Segoe UI",system-ui,sans-serif;--texte:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root{--creme:#2a1915;--carte:#341f1a;--brun:#fbf3e4;--brun-doux:#c9b3a6;--ciel:#7dc3f2;--ciel-fonce:#9fd3f6;--trait:#4a2f28;color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--creme);color:var(--brun);font:17px/1.6 var(--texte)}
+img{max-width:100%;height:auto;display:block}
+a{color:var(--ciel-fonce);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:3px solid var(--ciel);outline-offset:3px;border-radius:6px}
+.bande{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.col{max-width:960px;margin:0 auto}
+h1,h2,h3{font-family:var(--rond);font-weight:700;line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(2rem,5vw,3.1rem)}
+h2{font-size:clamp(1.5rem,3.4vw,2.1rem)}
+h3{font-size:1.3rem}
+p{margin:0;max-width:65ch}
+.etiquette{font-family:var(--rond);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ciel-fonce);font-weight:700}
+
+/* en-tête */
+.haut{padding-block:14px;border-bottom:1px solid var(--trait)}
+.haut .col{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.marque{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--brun);font-family:var(--rond);font-weight:700;font-size:1.15rem}
+.marque img{width:44px;height:44px;border-radius:12px}
+nav{display:flex;gap:16px;flex-wrap:wrap;font-family:var(--rond);font-weight:600}
+nav a{color:var(--brun);text-decoration:none}
+nav a:hover{color:var(--ciel-fonce)}
+
+/* ouverture */
+.ouverture{padding-block:48px 40px}
+.ouverture .col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);gap:40px;align-items:center}
+.ouverture .texte{display:flex;flex-direction:column;gap:18px;min-width:0}
+.ouverture .chapo{font-size:1.15rem;color:var(--brun-doux)}
+.logo-grand{border-radius:28px;background:#fdf8ee}
+.point{display:inline-block;width:.42em;height:.42em;border-radius:50%;background:var(--ciel);margin-left:.08em;vertical-align:.55em}
+
+/* promesses */
+.promesses{padding-block:36px;background:var(--brun);color:var(--creme)}
+@media (prefers-color-scheme:dark){.promesses{background:#1d110e;color:#fbf3e4}}
+.promesses .col{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:22px}
+.promesse{display:flex;flex-direction:column;gap:6px}
+.promesse b{font-family:var(--rond);font-size:1.1rem}
+.promesse span{opacity:.85;font-size:.95rem}
+.promesse::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--ciel)}
+
+/* jeux */
+.jeux{padding-block:56px;display:block}
+.jeux .col{display:flex;flex-direction:column;gap:28px}
+.jeu-vedette{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:center;background:var(--carte);border:1px solid var(--trait);border-radius:24px;padding:22px}
+.jeu-vedette .texte{display:flex;flex-direction:column;gap:14px;min-width:0}
+.jeu-vedette .affiche{border-radius:16px}
+.titre-jeu{display:flex;align-items:center;gap:14px}
+.titre-jeu img{width:64px;height:64px;border-radius:16px}
+.pastille{display:inline-block;font-family:var(--rond);font-weight:700;font-size:.85rem;padding:4px 12px;border-radius:999px;background:var(--ciel);color:#1e3b52}
+.captures{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.captures img{border-radius:10px;border:1px solid var(--trait)}
+.liens{display:flex;gap:14px;flex-wrap:wrap;font-weight:600}
+.a-venir{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.a-venir article{border:1px dashed var(--brun-doux);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px}
+
+/* studio */
+.studio{padding-block:56px;border-top:1px solid var(--trait)}
+.studio .col{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1fr);gap:36px;align-items:center}
+.studio img{border-radius:24px}
+.studio .texte{display:flex;flex-direction:column;gap:14px;min-width:0}
+
+/* pied */
+.pied{padding-block:32px;background:var(--carte);border-top:1px solid var(--trait);font-size:.92rem;color:var(--brun-doux)}
+.pied .col{display:flex;flex-direction:column;gap:12px}
+.pied .ligne{display:flex;gap:18px;flex-wrap:wrap}
+.adresse{user-select:all;font-weight:600;color:var(--brun)}
+
+/* pages de texte (confidentialité, mentions) */
+.page{padding-block:40px 56px}
+.page .col{max-width:720px;display:flex;flex-direction:column;gap:16px}
+.page h2{margin-top:18px}
+.page ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px}
+.page .date{color:var(--brun-doux)}
+
+@media (max-width:720px){
+  .ouverture .col,.jeu-vedette,.studio .col{grid-template-columns:1fr}
+  .ouverture .logo{max-width:260px}
+  .captures{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .studio img{max-width:320px}
+}
+@media (prefers-reduced-motion:no-preference){.point{animation:rebond 2.8s ease-in-out infinite}}
+@keyframes rebond{0%,80%,100%{transform:translateY(0)}88%{transform:translateY(-.25em)}}
+
+/* choix de la langue */
+.langues{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--rond);font-weight:600;font-size:.9rem}
+.langues a{color:var(--brun);text-decoration:none;padding:3px 10px;border-radius:999px;border:1px solid var(--trait)}
+.langues a[aria-current]{background:var(--brun);color:var(--creme);border-color:var(--brun)}
+.page section{display:flex;flex-direction:column;gap:12px;padding-bottom:24px;border-bottom:1px solid var(--trait)}
+.page section:last-child{border-bottom:0}
