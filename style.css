@@ -93,3 +93,11 @@ nav a:hover{color:var(--ciel-fonce)}
 .langues a[aria-current]{background:var(--brun);color:var(--creme);border-color:var(--brun)}
 .page section{display:flex;flex-direction:column;gap:12px;padding-bottom:24px;border-bottom:1px solid var(--trait)}
 .page section:last-child{border-bottom:0}
+
+/* communauté de testeurs */
+.testeurs{padding-block:48px;background:var(--carte);border-top:1px solid var(--trait)}
+.testeurs .col{display:flex;flex-direction:column;gap:14px}
+.atouts{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.atouts li{border:1px solid var(--trait);border-radius:16px;padding:14px 16px;background:var(--creme)}
+.appel{font-family:var(--rond);font-weight:700;font-size:1.1rem}
+.appel a{white-space:nowrap}
