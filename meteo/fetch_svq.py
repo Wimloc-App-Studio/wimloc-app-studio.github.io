@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.request
 
 ICAO = "LEZL"
@@ -74,16 +75,81 @@ def norm_values(d):
     }
 
 
+def parse_metar(raw, when):
+    """Décodage simple d'un METAR brut au format attendu par la page."""
+    m = {"rawOb": raw, "obsTime": int(when.timestamp()), "clouds": []}
+    body = raw.split(" RMK")[0].split(" TEMPO")[0].split(" BECMG")[0].split(" NOSIG")[0]
+    w = re.search(r" (\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT", body)
+    if w:
+        m["wdir"] = w.group(1) if w.group(1) == "VRB" else int(w.group(1))
+        m["wspd"] = int(w.group(2))
+        m["wgst"] = int(w.group(3)) if w.group(3) else None
+    t = re.search(r" (M?\d{2})/(M?\d{2})? ", body + " ")
+    if t:
+        conv = lambda s: -int(s[1:]) if s.startswith("M") else int(s)  # noqa: E731
+        m["temp"] = conv(t.group(1))
+        m["dewp"] = conv(t.group(2)) if t.group(2) else None
+    q = re.search(r" Q(\d{4})", body)
+    if q:
+        m["altim"] = int(q.group(1))
+    if "CAVOK" in body:
+        m["visib"] = "6+"
+        m["cover"] = "CAVOK"
+    else:
+        v = re.search(r"KT(?: \d{3}V\d{3})? (\d{4}) ", body + " ")
+        if v:
+            vm = int(v.group(1))
+            m["visib"] = "6+" if vm >= 9999 else round(vm / 1609, 2)
+    for c in re.finditer(r" (FEW|SCT|BKN|OVC)(\d{3})", body):
+        m["clouds"].append({"cover": c.group(1), "base": int(c.group(2)) * 100})
+    for c in ("NSC", "SKC", "CLR", "NCD"):
+        if f" {c}" in body:
+            m["cover"] = c
+    wx = re.findall(r" ((?:[-+]|VC)?(?:MI|BC|PR|DR|BL|SH|TS|FZ)?(?:DZ|RA|SN|SG|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)+)(?= )", body + " ")
+    m["wxString"] = " ".join(wx) or None
+    return m
+
+
+def get_retry(url, tries=3):
+    last = None
+    for k in range(tries):
+        try:
+            return get(url)
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(5 * (k + 1))
+    raise last
+
+
 # ---------- METAR ----------
 metar = []
 try:
-    raw = json.loads(get(f"https://aviationweather.gov/api/data/metar?ids={ICAO}&format=json&hours=48"))
+    raw = json.loads(get_retry(f"https://aviationweather.gov/api/data/metar?ids={ICAO}&format=json&hours=48"))
     keep = ["obsTime", "reportTime", "temp", "dewp", "wdir", "wspd", "wgst", "visib",
             "altim", "slp", "wxString", "clouds", "cover", "rawOb"]
     metar = [{k: m.get(k) for k in keep} for m in raw]
-    metar.sort(key=lambda m: m.get("obsTime") or 0, reverse=True)
 except Exception as e:  # noqa: BLE001
-    errors.append(f"metar: {e}")
+    errors.append(f"metar awc: {e}")
+if not metar:  # secours 1 : Ogimet (historique 48 h)
+    try:
+        now = dt.datetime.now(dt.timezone.utc)
+        b = (now - dt.timedelta(hours=48)).strftime("%Y%m%d%H%M")
+        txt = get_retry(f"https://www.ogimet.com/cgi-bin/getmetar?icao={ICAO}&begin={b}&end={now:%Y%m%d%H%M}")
+        for line in txt.splitlines():
+            p = line.split(",", 6)
+            if len(p) == 7 and p[0] == ICAO:
+                when = dt.datetime(int(p[1]), int(p[2]), int(p[3]), int(p[4]), int(p[5]), tzinfo=dt.timezone.utc)
+                metar.append(parse_metar(p[6].strip().rstrip("="), when))
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"metar ogimet: {e}")
+if not metar:  # secours 2 : NOAA, dernier METAR seulement
+    try:
+        lines = get_retry(f"https://tgftp.nws.noaa.gov/data/observations/metar/stations/{ICAO}.TXT").strip().splitlines()
+        when = dt.datetime.strptime(lines[0].strip(), "%Y/%m/%d %H:%M").replace(tzinfo=dt.timezone.utc)
+        metar.append(parse_metar(lines[1].strip(), when))
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"metar tgftp: {e}")
+metar.sort(key=lambda m: m.get("obsTime") or 0, reverse=True)
 
 # ---------- Journalier ----------
 DAILY_DEFAULT = {
@@ -109,7 +175,9 @@ if not daily:
                 daily[d["date"][:10]] = norm_values(d)
     except Exception as e:  # noqa: BLE001
         errors.append(f"daily legacy: {e}")
-daily_list = [dict(date=k, **v) for k, v in sorted(daily.items())][-500:]
+# Meteostat complète avec des valeurs de modèle, y compris pour les jours à venir : on ne garde que le passé
+today = dt.date.today().isoformat()
+daily_list = [dict(date=k, **v) for k, v in sorted(daily.items()) if k < today][-500:]
 
 # ---------- Mensuel ----------
 MONTHLY_DEFAULT = {
@@ -131,6 +199,8 @@ for url in (f"https://data.meteostat.net/monthly/{WMO}.csv.gz",
             if not y or not m:
                 continue
             tmp.append(dict(year=int(float(y)), month=int(float(m)), **norm_values(d)))
+        cur = (dt.date.today().year, dt.date.today().month)
+        tmp = [r for r in tmp if (r["year"], r["month"]) < cur]  # le mois en cours est recalculé à partir des jours
         if tmp:
             monthly = tmp
             break
