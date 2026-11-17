@@ -207,6 +207,60 @@ for url in (f"https://data.meteostat.net/monthly/{WMO}.csv.gz",
     except Exception as e:  # noqa: BLE001
         errors.append(f"monthly {url}: {e}")
 
+# ---------- Compléter avec GHCN-Daily (NOAA), série longue et plus complète ----------
+ghcn_filled = 0
+try:
+    txt = get_retry("https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/SPE00120512.csv")
+    raw_rows = []
+    for r in csv.DictReader(io.StringIO(txt)):
+        date = (r.get("DATE") or "")[:10]
+        if len(date) < 10:
+            continue
+
+        def val(name, r=r):
+            v = (r.get(name) or "").strip()
+            if not v:
+                return None
+            flags = (r.get(name + "_ATTRIBUTES") or "").split(",")
+            if len(flags) > 1 and flags[1].strip():  # valeur rejetée par le contrôle qualité
+                return None
+            return float(v)
+        raw_rows.append((date, val("PRCP"), val("TMAX"), val("TMIN")))
+    tmax_vals = [x[2] for x in raw_rows if x[2] is not None]
+    scale = 10.0 if tmax_vals and max(abs(v) for v in tmax_vals) > 60 else 1.0  # dixièmes de mm / de °C
+    acc = {}
+    for date, p, tx, tn in raw_rows:
+        k = (int(date[:4]), int(date[5:7]))
+        a = acc.setdefault(k, {"p": 0.0, "np": 0, "tx": 0.0, "nx": 0, "tn": 0.0, "nn": 0})
+        if p is not None:
+            a["p"] += p / scale; a["np"] += 1
+        if tx is not None:
+            a["tx"] += tx / scale; a["nx"] += 1
+        if tn is not None:
+            a["tn"] += tn / scale; a["nn"] += 1
+    by_key = {(m["year"], m["month"]): m for m in monthly}
+    cur = (dt.date.today().year, dt.date.today().month)
+    for (y, mo), a in acc.items():
+        if (y, mo) >= cur:
+            continue
+        dim = (dt.date(y + (mo == 12), mo % 12 + 1, 1) - dt.timedelta(days=1)).day
+        m = by_key.get((y, mo))
+        if m is None:
+            m = dict(year=y, month=mo, tavg=None, tmin=None, tmax=None, prcp=None, wspd=None, wpgt=None, pres=None, tsun=None)
+            by_key[(y, mo)] = m
+        changed = False
+        if a["np"] >= dim - 1:  # mois complet (au plus 1 jour manquant)
+            if m.get("prcp") is None or abs(m["prcp"] - a["p"]) > 0.5:
+                m["prcp"] = round(a["p"], 1); changed = True
+        if m.get("tmax") is None and a["nx"] >= 20:
+            m["tmax"] = round(a["tx"] / a["nx"], 1); changed = True
+        if m.get("tmin") is None and a["nn"] >= 20:
+            m["tmin"] = round(a["tn"] / a["nn"], 1); changed = True
+        ghcn_filled += changed
+    monthly = [by_key[k] for k in sorted(by_key)]
+except Exception as e:  # noqa: BLE001
+    errors.append(f"ghcn: {e}")
+
 out = {
     "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "station": {"name": "Sevilla Aeropuerto (San Pablo)", "icao": ICAO, "wmo": WMO,
@@ -220,4 +274,7 @@ dest = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file
 os.makedirs(dest, exist_ok=True)
 with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-print(f"metar={len(metar)} daily={len(daily_list)} monthly={len(monthly)} errors={errors}")
+out["ghcn_filled"] = ghcn_filled
+with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
+    json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+print(f"metar={len(metar)} daily={len(daily_list)} monthly={len(monthly)} ghcn_filled={ghcn_filled} errors={errors}")
