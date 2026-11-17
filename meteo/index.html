@@ -350,15 +350,13 @@ function renderHello(d){
   if (hour < 17 && sunT >= 7) lines.push(`Belle journée : ${hmTxt(sunT)} de soleil.`);
   $("helloBox").innerHTML = `<div class="hi">${salut} Thomas</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
 }
-// Couleur selon la température (froid bleu → chaud rouge)
-const T_STOPS = [[0,[96,165,250,255]],[8,[56,189,248,255]],[14,[52,211,153,255]],[19,[250,204,21,255]],[25,[251,146,60,255]],[31,[239,68,68,255]],[38,[153,27,27,255]]];
-const tCol = t => { const c = colorAt(T_STOPS, t); return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`; };
 // Jauge de température : barre de Tmin à Tmax, placée sur l'échelle des 14 jours
+// Dégradé fixe : bleu foncé (Tmin) → rouge foncé (Tmax)
 function tempGauge(tn, tx, lo, hi){
   const span = (hi - lo) || 1, l = (tn - lo)/span*100, w = Math.max(4, (tx - tn)/span*100);
-  return `<div class="tl"><span class="tn" style="color:${tCol(tn)}">${r0(tn)}°</span>
-    <div class="tg"><i style="left:${l}%;width:${w}%;background:linear-gradient(90deg,${tCol(tn)},${tCol(tx)})"></i></div>
-    <span class="tx" style="color:${tCol(tx)}">${r0(tx)}°</span></div>`;
+  return `<div class="tl"><span class="tn" style="color:var(--cold)">${r0(tn)}°</span>
+    <div class="tg"><i style="left:${l}%;width:${w}%;background:linear-gradient(90deg,#1e40af,#991b1b)"></i></div>
+    <span class="tx" style="color:var(--hot)">${r0(tx)}°</span></div>`;
 }
 function renderDays(d){
   const y = d.daily;
