@@ -376,9 +376,9 @@ with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 print(f"metar={len(metar)} daily={len(daily_list)} monthly={len(monthly)} ghcn_filled={ghcn_filled} errors={errors}")
 
-# ---------- Historique journalier depuis 1991 (pour les alertes records) ----------
+# ---------- Historique journalier depuis 1980 (pour les alertes records) ----------
 try:
-    start = dt.date(1991, 1, 1)
+    start = dt.date(1980, 1, 1)
     end = dt.date.today() - dt.timedelta(days=1)
     tx_l, tn_l, p_l = [], [], []
     d = start

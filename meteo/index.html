@@ -925,7 +925,7 @@ function aggregateDaily(daily){
 async function era5Months(){
   return cached("era5m", todayISO().slice(0,7), 24*7, async () => {
     const end = isoFromEpoch(epochDay(todayISO()) - 6);
-    const d = await getJSON(`${ARCHIVE}?latitude=${AIRPORT.lat}&longitude=${AIRPORT.lon}&start_date=1991-01-01&end_date=${end}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration&timezone=${TZ}`);
+    const d = await getJSON(`${ARCHIVE}?latitude=${AIRPORT.lat}&longitude=${AIRPORT.lon}&start_date=1980-01-01&end_date=${end}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration&timezone=${TZ}`);
     const y = d.daily;
     return aggregateDaily(y.time.map((t,i) => ({date:t, tmin:y.temperature_2m_min[i], tmax:y.temperature_2m_max[i], prcp:y.precipitation_sum[i],
       tsun: y.sunshine_duration[i] != null ? y.sunshine_duration[i]/60 : null})));
@@ -958,6 +958,9 @@ async function initClimat(){
     el.innerHTML = `<div class="card mut">⚠️ Données climatiques indisponibles (${e.message}).</div>`;
     return;
   }
+
+  // Pas de données avant 1980
+  Object.keys(months).forEach(k => { if (k < "1980") delete months[k]; });
 
   // Normales 1991-2020
   const N = [];
@@ -1061,8 +1064,9 @@ async function initClimat(){
 
 
 /* =========================================================
-   5. ALERTES RECORDS (depuis 1991, aéroport)
+   5. ALERTES RECORDS (depuis 1980, aéroport)
    ========================================================= */
+const REC_START = 1980;   // année zéro des records
 const MONTHS_FULL = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 const deMois = m => (["avril","août","octobre"].includes(MONTHS_FULL[m-1]) ? "d'" : "de ") + MONTHS_FULL[m-1];
 const ordinal = n => n === 1 ? "1er" : n + "e";
@@ -1154,11 +1158,11 @@ async function computeRecords(){
 
   // Références journalières par mois calendaire (observations, avant les 7 derniers jours)
   const refD = {};
-  // Références mensuelles : mois complets passés, depuis 1991
+  // Références mensuelles : mois complets passés, depuis 1980
   const byMonth = {};
   days.forEach((d, iso) => {
     const e = epochDay(iso), y = +iso.slice(0,4), m = +iso.slice(5,7);
-    if (y < 1991 || d.src !== "obs") return;
+    if (y < REC_START || d.src !== "obs") return;
     if (e < eT - 7){
       DP.forEach(P => { const v = P.f(d); if (v == null) return;
         ((refD[m] ||= {})[P.k] ||= []).push({v, date: iso}); });
@@ -1186,7 +1190,7 @@ async function computeRecords(){
         if (r.pess > 10) return;
         alerts.push({type:"jour", ico:P.ico[di], rank:r.rank, ties:r.ties, sort: r.rank + (e < eT ? 0.5 : 0),
           html:`<b>${new Date(iso+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}</b> <small>(${when})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
-            → ${rankTxt(r, dir)} pour un jour ${deMois(m)} depuis 1991
+            → ${rankTxt(r, dir)} pour un jour ${deMois(m)} depuis ${REC_START}
             <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u)} le ${new Date(r.best.date+"T12:00").toLocaleDateString("fr-FR")})</small>`});
       });
     });
@@ -1219,7 +1223,7 @@ async function computeRecords(){
         if (r.pess > 3) return;
         alerts.push({type:"mois", ico: P.ico[dir==="hi"?0:1], rank:r.rank, ties:r.ties, sort: r.rank - 0.25,
           html:`<b>${MONTHS_FULL[m-1]} ${y}</b> <small>(${complete ? (label ? "terminé" : "observé + prévu jusqu'à la fin du mois") : "à date, observé + prévu"})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
-            → ${rankTxt(r, dir)} pour un mois ${deMois(m)} depuis 1991
+            → ${rankTxt(r, dir)} pour un mois ${deMois(m)} depuis ${REC_START}
             <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u)} en ${r.best.date})</small>`});
       });
     });
@@ -1239,7 +1243,7 @@ async function initRecords(){
     let h = `<div class="card"><h2>🏆 Alertes records</h2>`;
     if (!R.alerts.length) h += `<div class="mut">Aucun paramètre proche d'un record pour le moment.</div>`;
     else h += R.alerts.map(a => `<div class="alert${a.rank===1?" rec":""}"><span class="ai">${a.rank===1?"🏆":a.ico}</span><div>${a.html}</div></div>`).join("");
-    h += `<div class="mut" style="margin-top:8px">Alerte si un mois entre dans le top 3, ou un jour dans le top 10, depuis 1991, en comparant au même mois de l'année.</div></div>`;
+    h += `<div class="mut" style="margin-top:8px">Alerte si un mois entre dans le top 3, ou un jour dans le top 10, depuis ${REC_START}, en comparant au même mois de l'année.</div></div>`;
     R.tables.forEach(T => {
       h += `<div class="card"><h2>${T.lbl}</h2><div class="tw"><table>
         <tr><th>Paramètre</th><th>Valeur</th><th>Rang haut</th><th>Rang bas</th><th>Record haut</th><th>Record bas</th></tr>`;
@@ -1250,7 +1254,7 @@ async function initRecords(){
           <td${r.dirs.includes("lo")?cls(r.lo):""}>${r.dirs.includes("lo") ? ordinal(r.lo.rank)+"/"+(r.n+1) : "—"}</td>
           <td>${fmtV(r.hi.best.v,r.P.u)} <small>${r.hi.best.date}</small></td><td>${fmtV(r.lo.best.v,r.P.u)} <small>${r.lo.best.date}</small></td></tr>`;
       });
-      h += `</table></div><div class="mut" style="margin-top:6px">Rang parmi les mois ${deMois(T.m)} depuis 1991. Pour un mois pas encore fini, seuls les classements déjà acquis sont donnés (« — » sinon).</div></div>`;
+      h += `</table></div><div class="mut" style="margin-top:6px">Rang parmi les mois ${deMois(T.m)} depuis ${REC_START}. Pour un mois pas encore fini, seuls les classements déjà acquis sont donnés (« — » sinon).</div></div>`;
     });
     h += `<div class="card mut">Jour de pluie = au moins 1 mm. Mesures de la station Séville Aéroport (GHCN-Daily NOAA et Meteostat) jusqu'au ${new Date(R.histEnd+"T12:00").toLocaleDateString("fr-FR")} ;
       les jours suivants viennent du modèle Open-Meteo (« estimé » pour le passé, « prévu » pour l'avenir).</div>`;
