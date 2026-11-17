@@ -1067,13 +1067,14 @@ async function initClimat(){
    5. ALERTES RECORDS (depuis 1980, aéroport)
    ========================================================= */
 const REC_START = 1980;   // année zéro des records
+const TOP = 5;            // seuls les 5 premiers rangs déclenchent une alerte
 const MONTHS_FULL = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 const deMois = m => (["avril","août","octobre"].includes(MONTHS_FULL[m-1]) ? "d'" : "de ") + MONTHS_FULL[m-1];
 const ordinal = n => n === 1 ? "1er" : n + "e";
 const dim = (y,m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
 const R1 = v => v == null || isNaN(v) ? null : Math.round(v*10)/10;
 
-// Paramètres journaliers (top 10)
+// Paramètres journaliers (top 5)
 const DP = [
   {k:"tx",  lbl:"Tmax",                   u:"°C", f:d=>d.tx, dirs:["hi","lo"], ico:["🔥","🥶"]},
   {k:"tn",  lbl:"Tmin",                   u:"°C", f:d=>d.tn, dirs:["hi","lo"], ico:["🔥","🥶"]},
@@ -1081,7 +1082,7 @@ const DP = [
   {k:"amp", lbl:"Écart entre Tmin et Tmax", u:"°C", f:d=>d.tx!=null&&d.tn!=null?R1(d.tx-d.tn):null, dirs:["hi","lo"], ico:["↕️","↕️"]},
   {k:"p",   lbl:"Pluie du jour",          u:"mm", f:d=>d.p!=null&&d.p>=1?d.p:null, dirs:["hi"], ico:["🌧️"]},
 ];
-// Paramètres mensuels (top 3) ; kind sert pour les mois pas encore finis
+// Paramètres mensuels (top 5) ; kind sert pour les mois pas encore finis
 const MP = [
   {k:"txMax",   lbl:"Tmax la plus haute du mois",          u:"°C", kind:"max",  t:"T", ico:["🔥","🥶"]},
   {k:"txMin",   lbl:"Tmax la plus basse du mois",          u:"°C", kind:"min",  t:"T", ico:["🔥","🥶"]},
@@ -1187,7 +1188,7 @@ async function computeRecords(){
       if (ref.length < 300) return;
       P.dirs.forEach((dir, di) => {
         const r = rankOf(v, ref, dir);
-        if (r.pess > 10) return;
+        if (r.pess > TOP) return;
         alerts.push({type:"jour", ico:P.ico[di], rank:r.rank, ties:r.ties, sort: r.rank + (e < eT ? 0.5 : 0),
           html:`<b>${new Date(iso+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}</b> <small>(${when})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
             → ${rankTxt(r, dir)} pour un jour ${deMois(m)} depuis ${REC_START}
@@ -1220,7 +1221,7 @@ async function computeRecords(){
       rows.push({P, v, hi, lo, n: okRef.length, dirs});
       dirs.forEach(dir => {
         const r = dir === "hi" ? hi : lo;
-        if (r.pess > 3) return;
+        if (r.pess > TOP) return;
         alerts.push({type:"mois", ico: P.ico[dir==="hi"?0:1], rank:r.rank, ties:r.ties, sort: r.rank - 0.25,
           html:`<b>${MONTHS_FULL[m-1]} ${y}</b> <small>(${complete ? (label ? "terminé" : "observé + prévu jusqu'à la fin du mois") : "à date, observé + prévu"})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
             → ${rankTxt(r, dir)} pour un mois ${deMois(m)} depuis ${REC_START}
@@ -1243,12 +1244,12 @@ async function initRecords(){
     let h = `<div class="card"><h2>🏆 Alertes records</h2>`;
     if (!R.alerts.length) h += `<div class="mut">Aucun paramètre proche d'un record pour le moment.</div>`;
     else h += R.alerts.map(a => `<div class="alert${a.rank===1?" rec":""}"><span class="ai">${a.rank===1?"🏆":a.ico}</span><div>${a.html}</div></div>`).join("");
-    h += `<div class="mut" style="margin-top:8px">Alerte si un mois entre dans le top 3, ou un jour dans le top 10, depuis ${REC_START}, en comparant au même mois de l'année.</div></div>`;
+    h += `<div class="mut" style="margin-top:8px">Alerte si un mois ou un jour entre dans le top ${TOP} depuis ${REC_START}, en comparant au même mois de l'année.</div></div>`;
     R.tables.forEach(T => {
       h += `<div class="card"><h2>${T.lbl}</h2><div class="tw"><table>
         <tr><th>Paramètre</th><th>Valeur</th><th>Rang haut</th><th>Rang bas</th><th>Record haut</th><th>Record bas</th></tr>`;
       T.rows.forEach(r => {
-        const cls = rk => rk.pess <= 3 ? ` style="color:#fbbf24;font-weight:700"` : "";
+        const cls = rk => rk.pess <= TOP ? ` style="color:#fbbf24;font-weight:700"` : "";
         h += `<tr><td style="white-space:normal;min-width:140px">${r.P.lbl}</td><td><b>${fmtV(r.v,r.P.u)}</b></td>
           <td${r.dirs.includes("hi")?cls(r.hi):""}>${r.dirs.includes("hi") ? ordinal(r.hi.rank)+"/"+(r.n+1) : "—"}</td>
           <td${r.dirs.includes("lo")?cls(r.lo):""}>${r.dirs.includes("lo") ? ordinal(r.lo.rank)+"/"+(r.n+1) : "—"}</td>
