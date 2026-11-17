@@ -252,7 +252,10 @@ try:
         changed = False
         if a["np"] >= dim - 1:  # mois complet (au plus 1 jour manquant)
             if m.get("prcp") is None or abs(m["prcp"] - a["p"]) > 0.5:
-                m["prcp"] = round(a["p"], 1); changed = True
+                m["prcp"] = round(a["p"], 1); m.pop("prcp_miss", None); changed = True
+        elif dim - a["np"] <= 5 and m.get("prcp") is None:
+            # quelques jours sans relevé (fréquent avant 1991) : total approché, légèrement sous-estimé
+            m["prcp"] = round(a["p"], 1); m["prcp_miss"] = dim - a["np"]; changed = True
         if m.get("tmax") is None and a["nx"] >= 20:
             m["tmax"] = round(a["tx"] / a["nx"], 1); changed = True
         if m.get("tmin") is None and a["nn"] >= 20:
