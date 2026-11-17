@@ -117,7 +117,7 @@
 <main>
   <!-- PRÉVISIONS -->
   <section id="t-prevision">
-    <div class="card hello" id="helloBox"><div class="hi">Bonjour Thomas 👋</div><div class="mut">Je regarde le ciel de Séville…</div></div>
+    <div class="card hello" id="helloBox"><div class="hi">Bonjour Thomas</div><div class="mut">Je regarde le ciel de Séville…</div></div>
     <div class="card" id="nowBox"><div class="mut">Chargement…</div></div>
     <div class="card"><h2>Prochaines 48 heures</h2><div class="strip" id="strip"></div></div>
     <div class="card">
@@ -343,7 +343,7 @@ function renderHello(d){
   else if (t0 - t1 >= 2) lines.push(`📉 Ça se rafraîchit la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
   const sunT = (y.sunshine_duration[0]||0)/3600;
   if (hour < 17 && sunT >= 7) lines.push(`Belle journée : ${hmTxt(sunT)} de soleil.`);
-  $("helloBox").innerHTML = `<div class="hi">${salut} Thomas 👋</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
+  $("helloBox").innerHTML = `<div class="hi">${salut} Thomas</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
 }
 function renderDays(d){
   const y = d.daily;
