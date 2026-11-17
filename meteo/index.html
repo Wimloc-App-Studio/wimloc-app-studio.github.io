@@ -45,7 +45,7 @@
 
   /* 14 jours */
   .scale{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin:0 0 4px}
-  .row{display:grid;grid-template-columns:78px 1fr 60px;gap:8px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--line)}
+  .row{display:grid;grid-template-columns:92px 1fr 64px;gap:8px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
   .row.low{opacity:.75}
   .row .dt b{display:block;font-size:14px}
@@ -56,7 +56,7 @@
   .rl b{font-size:15px;color:#7dd3fc}.rl .dry{color:var(--mut);font-weight:400}
   .gauge{position:relative;height:14px;border-radius:7px;background:#0b1626;border:1px solid #27405f;overflow:hidden}
   .gauge i{position:absolute;left:0;top:0;bottom:0;border-radius:7px}
-  .tl{display:flex;align-items:center;gap:6px;margin-top:3px;line-height:1.1}
+  .tl{display:flex;align-items:center;gap:6px;line-height:1.1}
   .tl .tn{min-width:26px;text-align:right;font-size:14px;font-weight:600}
   .tl .tx{min-width:26px;font-size:15px;font-weight:700}
   .tg{position:relative;flex:1;height:6px;border-radius:3px;background:#0b1626;border:1px solid #27405f}
@@ -70,7 +70,10 @@
   .hello p{margin:4px 0;font-size:15px;line-height:1.45}
   .gauge.sm{height:9px}
   .row .wd{text-align:right;font-size:14px;line-height:1.25}
-  .row .gauge:not(.sun){height:10px}
+  .row .gauge:not(.sun){height:8px;margin-top:2px}
+  .row .rn{text-align:right;line-height:1.2}
+  .row .rn b{font-size:15px;color:#7dd3fc}.row .rn .dry{color:var(--mut);font-size:13px}
+  .row .dt .wnd{color:var(--txt);opacity:.8;margin-top:1px}
 
   /* Cartes */
   .bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
@@ -130,7 +133,7 @@
     <div class="card"><h2>Prochaines 48 heures</h2><div class="strip" id="strip"></div></div>
     <div class="card">
       <h2>Prévisions 14 jours</h2>
-      <div class="mut" style="margin-bottom:6px">Température : barre de la Tmin à la Tmax, sur l'échelle des 14 jours · 🔵 Pluie : jauge pleine à 25 mm · 🟡 Soleil : jauge pleine = soleil du lever au coucher.</div>
+      <div class="mut" style="margin-bottom:6px">Au centre : température (Tmin → Tmax) et soleil (doré) / nuages (gris). À droite : pluie du jour, jauge pleine à 25 mm.</div>
       <div id="days"></div>
       <div class="mut" style="margin-top:8px">À partir de J+7 (lignes plus pâles), c'est une tendance, moins fiable.</div>
     </div>
@@ -372,16 +375,18 @@ function renderDays(d){
     const sun = y.sunshine_duration[i] != null ? y.sunshine_duration[i]/3600 : null;
     const dayH = y.daylight_duration && y.daylight_duration[i] != null ? y.daylight_duration[i]/3600 : null;
     html += `<div class="row${i>=7?" low":""}" title="${wLabel(y.weather_code[i])}">
-      <div class="dt"><b>${dayName(t,i)}</b><small>${wLabel(y.weather_code[i])}</small></div>
+      <div class="dt"><b>${dayName(t,i)}</b><small>${wLabel(y.weather_code[i])}</small>
+        <small class="wnd">${arrow(y.wind_direction_10m_dominant[i])} ${r0(y.wind_speed_10m_max[i])} km/h · raf. ${r0(y.wind_gusts_10m_max[i])}</small></div>
       <div>
-        <div class="rl">${mm >= 0.1 ? `<b>${fr(mm)} mm${mm>25?" ▸":""}</b>` : `<span class="dry">sec</span>`}
-          <small>${prob ? prob+" %" : ""}</small></div>
-        ${gauge(mm)}
+        ${tempGauge(y.temperature_2m_min[i], y.temperature_2m_max[i], tLo, tHi)}
         <div class="sl"><span>Soleil ${hmTxt(sun)}</span><small>${dayH ? "nuageux " + hmTxt(Math.max(0, dayH - (sun || 0))) : ""}</small></div>
         ${sunGauge(sun || 0, dayH)}
-        ${tempGauge(y.temperature_2m_min[i], y.temperature_2m_max[i], tLo, tHi)}
       </div>
-      <div class="wd">${arrow(y.wind_direction_10m_dominant[i])} ${r0(y.wind_speed_10m_max[i])}<small> km/h</small><br><small>raf. ${r0(y.wind_gusts_10m_max[i])}</small></div>
+      <div class="rn">
+        <div>${mm >= 0.1 ? `<b>${fr(mm)} mm${mm>25?" ▸":""}</b>` : `<span class="dry">sec</span>`}</div>
+        <small>${prob ? prob+" %" : "&nbsp;"}</small>
+        ${gauge(mm)}
+      </div>
     </div>`;
   });
   $("days").innerHTML = html;
