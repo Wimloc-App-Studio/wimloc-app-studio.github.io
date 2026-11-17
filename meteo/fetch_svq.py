@@ -151,6 +151,92 @@ if not metar:  # secours 2 : NOAA, dernier METAR seulement
         errors.append(f"metar tgftp: {e}")
 metar.sort(key=lambda m: m.get("obsTime") or 0, reverse=True)
 
+# ---------- SYNOP : quantités de pluie mesurées (toutes les 6 h) ----------
+TR_HOURS = {1: 6, 2: 12, 3: 18, 4: 24, 5: 1, 6: 2, 7: 3, 8: 9, 9: 15}
+
+
+def rrr_mm(code):
+    v = int(code)
+    if v == 990:
+        return 0.0          # traces
+    if v >= 991:
+        return (v - 990) / 10.0
+    return float(v)
+
+
+def parse_synop(report, when):
+    """Extrait la pluie (groupes 6RRRt et 7R24) et Tx/Tn d'un message SYNOP."""
+    tok = report.replace("=", " ").split()
+    if "AAXX" not in tok:
+        return None
+    i = tok.index("AAXX")
+    body = tok[i + 3:]
+    if not body:
+        return None
+    out = {"time": int(when.timestamp()), "rr": None, "r24": None, "tx": None, "tn": None}
+    sec1, sec3, cur = [], [], "1"
+    for t in body:
+        if t in ("333", "555", "222") or t.startswith("222"):
+            cur = t[:3]
+            continue
+        if cur == "1":
+            sec1.append(t)
+        elif cur == "333":
+            sec3.append(t)
+    if not sec1 or not sec1[0][:1].isdigit():
+        return None
+    ir = sec1[0][0]
+    groups = sec1[2:]
+    if groups and groups[0].startswith("00"):
+        groups = groups[1:]
+    last = 0
+    for g in groups:
+        if len(g) != 5 or not g[0].isdigit():
+            continue
+        d = int(g[0])
+        if d < last:
+            break
+        last = d
+        if d == 6 and g[1:4].isdigit() and g[4].isdigit() and g[4] != "0":
+            out["rr"] = {"mm": rrr_mm(g[1:4]), "h": TR_HOURS.get(int(g[4]), 6)}
+    last = -1
+    for g in sec3:
+        if len(g) != 5 or not g[0].isdigit():
+            continue
+        d = int(g[0])
+        if d < last:      # groupes supplémentaires (ex. rayonnement après 55SSS) : ignorés
+            continue
+        last = d
+        if d == 1 and g[1] in "01" and g[2:].isdigit():
+            out["tx"] = (1 if g[1] == "0" else -1) * int(g[2:]) / 10
+        elif d == 2 and g[1] in "01" and g[2:].isdigit():
+            out["tn"] = (1 if g[1] == "0" else -1) * int(g[2:]) / 10
+        elif d == 6 and g[1:4].isdigit() and g[4].isdigit() and g[4] != "0" and out["rr"] is None:
+            out["rr"] = {"mm": rrr_mm(g[1:4]), "h": TR_HOURS.get(int(g[4]), 6)}
+        elif d == 7 and g[1:].isdigit():
+            v = int(g[1:])
+            out["r24"] = 0.0 if v == 9999 else v / 10
+    if out["rr"] is None and ir == "3":   # station : « pas de précipitation »
+        out["rr"] = {"mm": 0.0, "h": 6 if when.hour % 6 == 0 else 3}
+    return out
+
+
+synop = []
+try:
+    now = dt.datetime.now(dt.timezone.utc)
+    b = (now - dt.timedelta(hours=54)).strftime("%Y%m%d%H%M")
+    txt = get_retry(f"https://www.ogimet.com/cgi-bin/getsynop?block={WMO}&begin={b}&end={now:%Y%m%d%H%M}")
+    for line in txt.splitlines():
+        p = line.split(",", 6)
+        if len(p) == 7 and p[0] == WMO:
+            when = dt.datetime(int(p[1]), int(p[2]), int(p[3]), int(p[4]), int(p[5]), tzinfo=dt.timezone.utc)
+            s_ = parse_synop(p[6], when)
+            if s_:
+                synop.append(s_)
+    synop.sort(key=lambda x: x["time"], reverse=True)
+except Exception as e:  # noqa: BLE001
+    errors.append(f"synop: {e}")
+
 # ---------- Journalier ----------
 DAILY_DEFAULT = {
     11: ["date", "tavg", "tmin", "tmax", "prcp", "snow", "wdir", "wspd", "wpgt", "pres", "tsun"],
@@ -275,6 +361,7 @@ out = {
     "station": {"name": "Sevilla Aeropuerto (San Pablo)", "icao": ICAO, "wmo": WMO,
                 "lat": 37.418, "lon": -5.893, "alt": 34},
     "metar": metar,
+    "synop": synop,
     "daily": daily_list,
     "monthly": monthly,
     "errors": errors,
