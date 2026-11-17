@@ -43,7 +43,8 @@
   .day .p{font-size:12px;color:var(--acc);margin-top:3px}
   .day .w{font-size:11px;color:var(--mut)}
   #chart{width:100%;height:150px;margin-top:10px}
-  .leaflet-container{background:#0b1220}
+  .leaflet-container{background:#aad3df}
+  .homeLbl{font-weight:700;color:#e11d48;font-size:13px}
 </style>
 </head>
 <body>
@@ -78,7 +79,7 @@
     <div class="mut">Chargement…</div>
   </section>
 
-  <p class="mut" style="text-align:center">Données : <a href="https://open-meteo.com/" style="color:#38bdf8">Weather data by Open-Meteo.com</a> (CC BY 4.0) · <a href="https://www.rainviewer.com/" style="color:#38bdf8">Weather data by RainViewer</a> · fond © OpenStreetMap / CARTO.<br>Au-delà de 7 jours, la prévision est indicative (tendance).</p>
+  <p class="mut" style="text-align:center">Données : <a href="https://open-meteo.com/" style="color:#38bdf8">Weather data by Open-Meteo.com</a> (CC BY 4.0) · <a href="https://www.rainviewer.com/" style="color:#38bdf8">Weather data by RainViewer</a> · fond © OpenStreetMap.<br>Au-delà de 7 jours, la prévision est indicative (tendance).</p>
 </main>
 
 <script>
@@ -124,13 +125,17 @@ if (!HAS_MAP) {
      Ouvre ce fichier dans Chrome (pas dans l'aperçu de l'appli Claude) ou depuis GitHub Pages.</div>`;
   throw new Error("Leaflet non chargé");
 }
-const map = L.map("map", {zoomControl:true, worldCopyJump:true}).setView([48, 10], 4);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-  attribution:'© OpenStreetMap © CARTO', subdomains:"abcd", maxZoom:12
+const map = L.map("map", {zoomControl:true, worldCopyJump:true}).setView([44, 2], 4);
+// Fond de carte OpenStreetMap : gratuit, sans clé
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom:12
 }).addTo(map);
-// Les étiquettes par-dessus les couches météo
-map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {subdomains:"abcd", pane:"labels", maxZoom:12}).addTo(map);
+// Point fixe : Séville
+map.createPane("home"); map.getPane("home").style.zIndex = 660;
+L.circleMarker([37.389, -5.984], {pane:"home", radius:8, color:"#fff", weight:3, fillColor:"#e11d48", fillOpacity:1})
+  .bindTooltip("Séville", {permanent:true, direction:"right", offset:[8,0], className:"homeLbl"})
+  .on("click", () => loadCity(DEFAULT_CITY))
+  .addTo(map);
 
 let mode = "radar", dayIdx = 0, playing = null;
 let overlay = null, cityMarker = null;
@@ -231,7 +236,7 @@ function renderGrid(){
   const url = cv.toDataURL();
   const bounds = [[GRID.latMin,GRID.lonMin],[GRID.latMax,GRID.lonMax]];
   if (overlay && overlay instanceof L.ImageOverlay) overlay.setUrl(url);
-  else { clearOverlay(); overlay = L.imageOverlay(url, bounds, {opacity:0.75}).addTo(map); }
+  else { clearOverlay(); overlay = L.imageOverlay(url, bounds, {opacity:0.65}).addTo(map); }
   $("dayLbl").textContent = fmtDay(dateISO(dayIdx)) + (dayIdx>=7 ? " (tendance)" : "");
 }
 
@@ -257,7 +262,7 @@ function renderRadar(){
   if (!radar || !radar.frames.length) return;
   Object.values(radar.layers).forEach(l=>l.setOpacity(0));
   const i = Math.min(dayIdx, radar.frames.length-1);
-  radarLayer(i).setOpacity(0.8);
+  radarLayer(i).setOpacity(0.7);
   if (radar.frames[i+1]) radarLayer(i+1); // préchargement
   const t = new Date(radar.frames[i].time*1000);
   $("dayLbl").textContent = t.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) +
