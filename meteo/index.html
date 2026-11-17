@@ -867,7 +867,7 @@ async function initClimat(){
     }
     const cur = y === new Date().getFullYear();   // année en cours : cumul depuis janvier
     const okP = np === 12 || (cur && np > 0), okT = nt === 12 || (cur && nt > 0);
-    return {y, cur, approx, tm: okT ? t/nt : null, full: nt === 12, n: nt, np,
+    return {y, cur, approx, pSum: np ? p : null, tm: okT ? t/nt : null, full: nt === 12, n: nt, np,
             prcp: okP ? p : null, prcpPct: okP && pn ? p/pn*100 : null};
   });
 
@@ -894,7 +894,7 @@ async function initClimat(){
   // Tableau et bandes des années
   let yt = `<table><tr><th>Année</th><th>T° moy.</th><th>Écart</th><th>Pluie</th><th>% normale</th></tr>`;
   const pTxt = s => s.prcp != null ? `${s.approx?"≈ ":""}${fr(s.prcp,0)} mm${s.np < 12 ? ` <small>(${s.np} mois)</small>` : ""}`
-                                    : `<small>incomplet (${s.np}/12 mois)</small>`;
+                                    : s.pSum != null ? `≥ ${fr(s.pSum,0)} mm <small>(${s.np}/12 mois)</small>` : `<small>pas de mesure</small>`;
   yearStats.forEach(s => {
     yt += `<tr><td>${s.y}${s.full?"":" *"}</td><td>${s.tm != null ? fr(s.tm)+"°" : `<small>incomplet</small>`}</td><td>${s.full && normYear != null ? anomChip(s.tm - normYear) : "—"}</td>
       <td>${pTxt(s)}</td><td>${s.prcpPct != null ? fr(s.prcpPct,0)+" %" : "—"}</td></tr>`;
@@ -930,7 +930,7 @@ async function initClimat(){
     $("ySum").innerHTML = `
       <div><small>T° moyenne${s.full?"":" (partielle)"}</small><b>${s.tm != null ? fr(s.tm)+" °C" : "incomplet"}</b></div>
       <div><small>Écart à la normale</small><b>${s.full && normYear != null ? (s.tm-normYear>0?"+":"") + fr(s.tm-normYear) + " °C" : "—"}</b></div>
-      <div><small>Cumul de pluie${s.cur ? " depuis janvier" : ""}</small><b>${s.prcp != null ? (s.approx?"≈ ":"") + fr(s.prcp,0)+" mm" : `incomplet (${s.np}/12 mois)`}</b></div>
+      <div><small>Cumul de pluie${s.cur ? " depuis janvier" : ""}</small><b>${s.prcp != null ? (s.approx?"≈ ":"") + fr(s.prcp,0)+" mm" : s.pSum != null ? `≥ ${fr(s.pSum,0)} mm <small>(${s.np}/12 mois)</small>` : "pas de mesure"}</b></div>
       <div><small>Pluie / normale des mêmes mois</small><b>${s.prcpPct != null ? fr(s.prcpPct,0) + " %" : "—"}</b></div>`;
   }
   $("ySel").onchange = e => showYear(+e.target.value);
