@@ -37,7 +37,7 @@
 
   /* 48 h */
   .strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
-  .hr{min-width:72px;max-width:72px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
+  .hr{min-width:58px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
   .hr .i{font-size:22px}
   .hr .vb{height:34px;display:flex;align-items:flex-end;justify-content:center;margin:3px 0}
   .hr .vb i{width:14px;background:#3b82f6;border-radius:3px 3px 0 0}
@@ -309,7 +309,7 @@ function renderStrip(d){
     const lbl = newDay ? new Date(h.time[i]).toLocaleDateString("fr-FR",{weekday:"short"}) + " " + hour + "h" : hour + "h";
     html += `<div class="hr${newDay?" newday":""}">
       <div><b>${lbl}</b></div>
-      <div><small>${wLabel(h.weather_code[i])}</small></div>
+      <div class="i">${wIcon(h.weather_code[i], h.is_day[i])}</div>
       <div><b>${r0(h.temperature_2m[i])}°</b></div>
       <div class="vb"><i style="height:${Math.min(34, rain/6*34)}px"></i></div>
       <div style="color:#7dd3fc">${rain >= 0.1 ? fr(rain)+" mm" : "<small>sec</small>"}</div>
