@@ -209,6 +209,7 @@ for url in (f"https://data.meteostat.net/monthly/{WMO}.csv.gz",
 
 # ---------- Compléter avec GHCN-Daily (NOAA), série longue et plus complète ----------
 ghcn_filled = 0
+ghcn_gaps = []
 try:
     txt = get_retry("https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/SPE00120512.csv")
     raw_rows = []
@@ -257,6 +258,8 @@ try:
         if m.get("tmin") is None and a["nn"] >= 20:
             m["tmin"] = round(a["tn"] / a["nn"], 1); changed = True
         ghcn_filled += changed
+        if a["np"] < dim - 1:
+            ghcn_gaps.append([y, mo, a["np"], dim, round(a["p"], 1)])
     monthly = [by_key[k] for k in sorted(by_key)]
 except Exception as e:  # noqa: BLE001
     errors.append(f"ghcn: {e}")
@@ -275,6 +278,7 @@ os.makedirs(dest, exist_ok=True)
 with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 out["ghcn_filled"] = ghcn_filled
+out["ghcn_gaps"] = ghcn_gaps
 with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 print(f"metar={len(metar)} daily={len(daily_list)} monthly={len(monthly)} ghcn_filled={ghcn_filled} errors={errors}")
