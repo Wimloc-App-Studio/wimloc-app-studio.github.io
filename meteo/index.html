@@ -41,17 +41,22 @@
 
   /* 14 jours */
   .scale{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin:0 0 4px}
-  .row{display:grid;grid-template-columns:62px 34px 50px 1fr 66px;gap:8px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line)}
+  .row{display:grid;grid-template-columns:72px 32px 46px 1fr 60px;gap:8px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
   .row.low{opacity:.75}
   .row .dt b{display:block;font-size:14px}
+  .row .dt small{display:block;line-height:1.2;white-space:normal}
   .row .ic{font-size:28px;text-align:center}
   .row .tt{text-align:right;line-height:1.25}.row .tt b{color:var(--hot);font-size:16px;display:block}.row .tt span{color:var(--cold);font-size:14px}
   .rl{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:3px}
   .rl b{font-size:15px;color:#7dd3fc}.rl .dry{color:var(--mut);font-weight:400}
   .gauge{position:relative;height:14px;border-radius:7px;background:#0b1626;border:1px solid #27405f;overflow:hidden}
   .gauge i{position:absolute;left:0;top:0;bottom:0;border-radius:7px}
-  .gauge:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(20% - 1px),rgba(255,255,255,.18) calc(20% - 1px) 20%)}
+  .gauge.sun{background:#1f1a08;border-color:#5c4a12;height:10px;margin-top:4px}
+  .sl{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-top:6px;color:#fde68a}
+  .hello{background:linear-gradient(135deg,#1e3a5f,#1e293b);}
+  .hello .hi{font-size:20px;font-weight:700;margin-bottom:6px}
+  .hello p{margin:4px 0;font-size:15px;line-height:1.45}
   .gauge.sm{height:9px}
   .row .wd{text-align:right;font-size:14px;line-height:1.3}
 
@@ -108,11 +113,12 @@
 <main>
   <!-- PRÉVISIONS -->
   <section id="t-prevision">
+    <div class="card hello" id="helloBox"><div class="hi">Bonjour Thomas 👋</div><div class="mut">Je regarde le ciel de Séville…</div></div>
     <div class="card" id="nowBox"><div class="mut">Chargement…</div></div>
     <div class="card"><h2>Prochaines 48 heures</h2><div class="strip" id="strip"></div></div>
     <div class="card">
       <h2>Prévisions 14 jours</h2>
-      <div class="mut" style="margin-bottom:6px">Jauge bleue : pluie du jour, de 0 à 25 mm (un trait = 5 mm).</div>
+      <div class="mut" style="margin-bottom:6px">🔵 Pluie : la jauge se remplit jusqu'à 25 mm · 🟡 Soleil : jauge pleine = soleil du lever au coucher.</div>
       <div id="days"></div>
       <div class="mut" style="margin-top:8px">À partir de J+7 (lignes plus pâles), c'est une tendance, moins fiable.</div>
     </div>
@@ -266,9 +272,9 @@ async function initPrevision(){
     const url = `${FC}?latitude=${SVQ.lat}&longitude=${SVQ.lon}&timezone=${TZ}&forecast_days=14` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,pressure_msl,is_day` +
       `&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,is_day` +
-      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunshine_duration,sunrise,sunset,uv_index_max`;
-    const d = await cached("fcSVQ", todayISO(), 0.5, () => getJSON(url));
-    renderNow(d); renderStrip(d); renderDays(d);
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunshine_duration,daylight_duration,sunrise,sunset,uv_index_max`;
+    const d = await cached("fcSVQ2", todayISO(), 0.5, () => getJSON(url));
+    renderHello(d); renderNow(d); renderStrip(d); renderDays(d);
   }catch(e){
     $("nowBox").innerHTML = `<div class="mut">⚠️ Prévision indisponible (${e.message}).</div>`;
   }
@@ -309,22 +315,51 @@ function renderStrip(d){
   }
   $("strip").innerHTML = html;
 }
+function sunGauge(sunH, dayH){
+  const w = dayH ? Math.min(100, sunH/dayH*100) : 0;
+  return `<div class="gauge sun"><i style="width:${w}%;background:linear-gradient(90deg,#fde047,#f59e0b)"></i></div>`;
+}
+const hmTxt = h => h == null ? "—" : `${Math.floor(h)} h${Math.round((h%1)*60) ? " " + String(Math.round((h%1)*60)).padStart(2,"0") : ""}`;
+function renderHello(d){
+  const y = d.daily, c = d.current;
+  const hour = +new Date().toLocaleString("sv-SE",{timeZone:"Europe/Madrid"}).slice(11,13);
+  const salut = hour < 6 ? "Bonne nuit" : hour < 13 ? "Bonjour" : hour < 19 ? "Bon après-midi" : "Bonsoir";
+  const lines = [];
+  if (hour < 17){
+    lines.push(`Aujourd'hui à Séville : ${wLabel(y.weather_code[0]).toLowerCase()}, jusqu'à <b>${r0(y.temperature_2m_max[0])}°</b>. Il fait ${r0(c.temperature_2m)}° en ce moment.`);
+  } else {
+    lines.push(`En ce moment : ${wLabel(c.weather_code).toLowerCase()}, <b>${r0(c.temperature_2m)}°</b>.`);
+  }
+  lines.push(`Demain : ${wLabel(y.weather_code[1]).toLowerCase()}, <b>${r0(y.temperature_2m_min[1])}°</b> au réveil et <b>${r0(y.temperature_2m_max[1])}°</b> l'après-midi${(y.precipitation_sum[1]||0) >= 1 ? `, avec ${fr(y.precipitation_sum[1])} mm de pluie — prends un parapluie ☂️` : ""}.`);
+  const start = hour < 17 ? 0 : 1;
+  let nx = -1; for (let i=start; i<y.time.length; i++) if ((y.precipitation_sum[i]||0) >= 1){ nx = i; break; }
+  if (nx < 0) lines.push(`☀️ Pas de pluie notable prévue dans les 14 prochains jours.`);
+  else if (nx > 1) lines.push(`🌧️ Prochaine pluie : <b>${dayName(y.time[nx], nx).toLowerCase()}</b> (${fr(y.precipitation_sum[nx])} mm${y.precipitation_probability_max[nx] ? `, ${y.precipitation_probability_max[nx]} % de risque` : ""}).`);
+  const t0 = y.temperature_2m_max.slice(0,3).reduce((a,b)=>a+b,0)/3, t1 = y.temperature_2m_max.slice(4,8).reduce((a,b)=>a+b,0)/4;
+  if (t1 - t0 >= 2) lines.push(`📈 Ça se réchauffe la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
+  else if (t0 - t1 >= 2) lines.push(`📉 Ça se rafraîchit la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
+  const sunT = (y.sunshine_duration[0]||0)/3600;
+  if (hour < 17 && sunT >= 7) lines.push(`😎 Belle journée : ${hmTxt(sunT)} de soleil.`);
+  $("helloBox").innerHTML = `<div class="hi">${salut} Thomas 👋</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
+}
 function renderDays(d){
   const y = d.daily;
-  let html = `<div class="row" style="padding-top:0;border:0"><div></div><div></div><div></div>
-    <div class="scale"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25 mm</span></div><div></div></div>`;
+  let html = "";
   y.time.forEach((t,i) => {
     const mm = y.precipitation_sum[i] || 0;
     const prob = y.precipitation_probability_max[i];
     const sun = y.sunshine_duration[i] != null ? y.sunshine_duration[i]/3600 : null;
+    const dayH = y.daylight_duration && y.daylight_duration[i] != null ? y.daylight_duration[i]/3600 : null;
     html += `<div class="row${i>=7?" low":""}" title="${wLabel(y.weather_code[i])}">
-      <div class="dt"><b>${dayName(t,i)}</b><small>☀️ ${fr(sun,0)} h</small></div>
+      <div class="dt"><b>${dayName(t,i)}</b><small>${wLabel(y.weather_code[i])}</small></div>
       <div class="ic">${wIcon(y.weather_code[i])}</div>
       <div class="tt"><b>${r0(y.temperature_2m_max[i])}°</b><span>${r0(y.temperature_2m_min[i])}°</span></div>
       <div>
         <div class="rl">${mm >= 0.1 ? `<b>${fr(mm)} mm${mm>25?" ▸":""}</b>` : `<span class="dry">sec</span>`}
           <small>${prob ? prob+" %" : ""}</small></div>
         ${gauge(mm)}
+        <div class="sl"><span>☀️ ${hmTxt(sun)}</span><small>${dayH ? "sur " + hmTxt(dayH) : ""}</small></div>
+        ${sunGauge(sun || 0, dayH)}
       </div>
       <div class="wd">${arrow(y.wind_direction_10m_dominant[i])} ${r0(y.wind_speed_10m_max[i])}<small> km/h</small><br><small>raf. ${r0(y.wind_gusts_10m_max[i])}</small></div>
     </div>`;
