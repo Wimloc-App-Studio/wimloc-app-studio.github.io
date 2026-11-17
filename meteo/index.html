@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Ma Météo Europe</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#0f172a;--card:#1e293b;--line:#334155;--txt:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+  header{padding:12px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:sticky;top:0;background:var(--bg);z-index:1000;border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0 8px 0 0}
+  .search{position:relative;flex:1;min-width:180px}
+  input[type=text]{width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt);font-size:15px}
+  #results{position:absolute;top:42px;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:none}
+  #results div{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+  #results div:hover{background:#273449}
+  button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
+  button.on{background:var(--acc);color:#0f172a;border-color:var(--acc);font-weight:600}
+  main{max-width:1100px;margin:0 auto;padding:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+  #map{height:62vh;min-height:360px;border-radius:12px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .bar .sp{flex:1}
+  #slider{flex:1;min-width:160px;accent-color:var(--acc)}
+  #dayLbl{min-width:120px;font-weight:600}
+  .legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-top:8px;flex-wrap:wrap}
+  .legend .grad{height:10px;flex:1;min-width:150px;border-radius:5px}
+  #status{font-size:12px;color:var(--mut)}
+  .now{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .now .big{font-size:44px;font-weight:700}
+  .now .ico{font-size:46px}
+  .mut{color:var(--mut);font-size:13px}
+  .days{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-top:12px}
+  .day{background:#162133;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}
+  .day.low{opacity:.8;border-style:dashed}
+  .day .d{font-size:13px;font-weight:600}
+  .day .i{font-size:28px;margin:4px 0}
+  .day .t{font-size:14px}.day .t b{color:#fca5a5}.day .t span{color:#93c5fd}
+  .day .p{font-size:12px;color:var(--acc);margin-top:3px}
+  .day .w{font-size:11px;color:var(--mut)}
+  #chart{width:100%;height:150px;margin-top:10px}
+  .leaflet-container{background:#0b1220}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌦️ Ma Météo</h1>
+  <div class="search">
+    <input id="q" type="text" placeholder="Rechercher une ville…" autocomplete="off">
+    <div id="results"></div>
+  </div>
+  <button id="geo" title="Ma position">📍</button>
+</header>
+
+<main>
+  <section class="card">
+    <div class="bar">
+      <button id="mRadar" class="on">Radar pluie (live)</button>
+      <button id="mRain">Prévision pluie 14 j</button>
+      <button id="mTemp">Température 14 j</button>
+      <span class="sp"></span>
+      <span id="status"></span>
+    </div>
+    <div class="bar">
+      <button id="play">▶︎</button>
+      <input id="slider" type="range" min="0" max="13" value="0">
+      <span id="dayLbl"></span>
+    </div>
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card" id="city">
+    <div class="mut">Chargement…</div>
+  </section>
+
+  <p class="mut" style="text-align:center">Données : Open-Meteo (prévisions) · RainViewer (radar) · fond © OpenStreetMap / CARTO.<br>Au-delà de 7 jours, la prévision est indicative (tendance).</p>
+</main>
+
+<script>
+/* ---------- Réglages ---------- */
+const DAYS = 14;
+const GRID = {latMin:35, latMax:72.5, lonMin:-25, lonMax:45, step:2.5};
+const DEFAULT_CITY = {name:"Séville", country:"Espagne", lat:37.389, lon:-5.984};
+const CACHE_H = 3;
+
+/* ---------- Utilitaires ---------- */
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+const WMO = {
+  0:["☀️","Ciel clair"],1:["🌤️","Peu nuageux"],2:["⛅","Partiellement nuageux"],3:["☁️","Couvert"],
+  45:["🌫️","Brouillard"],48:["🌫️","Brouillard givrant"],
+  51:["🌦️","Bruine légère"],53:["🌦️","Bruine"],55:["🌧️","Bruine forte"],
+  56:["🌧️","Bruine verglaçante"],57:["🌧️","Bruine verglaçante"],
+  61:["🌦️","Pluie faible"],63:["🌧️","Pluie"],65:["🌧️","Forte pluie"],
+  66:["🌧️","Pluie verglaçante"],67:["🌧️","Pluie verglaçante"],
+  71:["🌨️","Neige faible"],73:["🌨️","Neige"],75:["❄️","Forte neige"],77:["🌨️","Grains de neige"],
+  80:["🌦️","Averses"],81:["🌧️","Averses"],82:["⛈️","Fortes averses"],
+  85:["🌨️","Averses de neige"],86:["❄️","Averses de neige"],
+  95:["⛈️","Orage"],96:["⛈️","Orage + grêle"],99:["⛈️","Orage + grêle"]
+};
+const wmo = c => WMO[c] || ["❔","—"];
+const fmtDay = (iso, short) => {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("fr-FR", short ? {weekday:"short", day:"numeric"} : {weekday:"long", day:"numeric", month:"short"});
+};
+function dateISO(offset){
+  const d = new Date(); d.setUTCDate(d.getUTCDate()+offset);
+  return d.toISOString().slice(0,10);
+}
+
+/* ---------- Carte ---------- */
+const HAS_MAP = typeof L !== "undefined";
+if (!HAS_MAP) {
+  document.querySelector("section.card").innerHTML =
+    `<div class="mut" style="padding:20px;text-align:center">⚠️ La carte n'a pas pu se charger.<br>
+     Ouvre ce fichier dans Chrome (pas dans l'aperçu de l'appli Claude) ou depuis GitHub Pages.</div>`;
+  throw new Error("Leaflet non chargé");
+}
+const map = L.map("map", {zoomControl:true, worldCopyJump:true}).setView([48, 10], 4);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  attribution:'© OpenStreetMap © CARTO', subdomains:"abcd", maxZoom:12
+}).addTo(map);
+// Les étiquettes par-dessus les couches météo
+map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
+L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {subdomains:"abcd", pane:"labels", maxZoom:12}).addTo(map);
+
+let mode = "radar", dayIdx = 0, playing = null;
+let overlay = null, cityMarker = null;
+
+/* ---------- Échelles de couleurs ---------- */
+const RAIN_STOPS = [[0,[0,0,0,0]],[0.3,[120,190,255,0]],[1,[90,170,255,150]],[3,[40,120,255,190]],[7,[30,200,120,210]],[15,[250,220,40,220]],[30,[250,120,30,230]],[50,[220,30,60,235]],[80,[180,40,200,240]]];
+const TEMP_STOPS = [[-20,[90,40,160,200]],[-10,[60,80,220,200]],[0,[80,170,240,200]],[8,[90,210,180,200]],[15,[150,220,90,200]],[22,[250,220,60,200]],[30,[250,130,40,210]],[38,[220,40,40,220]],[45,[140,0,40,230]]];
+function colorAt(stops, v){
+  if (v == null || isNaN(v)) return [0,0,0,0];
+  if (v <= stops[0][0]) return stops[0][1];
+  for (let i=1;i<stops.length;i++){
+    if (v <= stops[i][0]){
+      const [a,ca]=stops[i-1],[b,cb]=stops[i], t=(v-a)/(b-a);
+      return ca.map((x,k)=>x+(cb[k]-x)*t);
+    }
+  }
+  return stops[stops.length-1][1];
+}
+function legend(){
+  const el = $("legend");
+  if (mode === "radar"){
+    el.innerHTML = `<span>Faible</span><div class="grad" style="background:linear-gradient(90deg,#9bd2ff,#2e7bff,#1fbf5a,#f5d32a,#f5761e,#d81e3c,#b228c8)"></div><span>Intense</span>`;
+  } else {
+    const stops = mode==="rain" ? RAIN_STOPS.slice(2) : TEMP_STOPS;
+    const g = stops.map(([v,c])=>`rgb(${c[0]},${c[1]},${c[2]})`).join(",");
+    const lbl = mode==="rain" ? ["1 mm","80+ mm / jour"] : ["-20 °C","45 °C (max du jour)"];
+    el.innerHTML = `<span>${lbl[0]}</span><div class="grad" style="background:linear-gradient(90deg,${g})"></div><span>${lbl[1]}</span>`;
+  }
+}
+
+/* ---------- Grille de prévision Europe (Open-Meteo, multi-points) ---------- */
+let grid = null; // {lats, lons, rain[day][i][j], temp[day][i][j]}
+async function loadGrid(){
+  const cached = store.get("gridCache");
+  if (cached && Date.now() - cached.t < CACHE_H*3600e3 && cached.start === dateISO(0)) { grid = cached.g; return; }
+  const lats=[], lons=[];
+  for (let la=GRID.latMin; la<=GRID.latMax+1e-9; la+=GRID.step) lats.push(+la.toFixed(2));
+  for (let lo=GRID.lonMin; lo<=GRID.lonMax+1e-9; lo+=GRID.step) lons.push(+lo.toFixed(2));
+  const pts = [];
+  lats.forEach((la,i)=>lons.forEach((lo,j)=>pts.push([la,lo,i,j])));
+  const rain = Array.from({length:DAYS},()=>lats.map(()=>new Array(lons.length).fill(null)));
+  const temp = Array.from({length:DAYS},()=>lats.map(()=>new Array(lons.length).fill(null)));
+  const B = 100; let done = 0;
+  const batches = [];
+  for (let k=0;k<pts.length;k+=B) batches.push(pts.slice(k,k+B));
+  for (const batch of batches){
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + batch.map(p=>p[0]).join(",") +
+      "&longitude=" + batch.map(p=>p[1]).join(",") +
+      "&daily=precipitation_sum,temperature_2m_max&forecast_days="+DAYS+"&timezone=GMT";
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Open-Meteo " + r.status);
+    let data = await r.json();
+    if (!Array.isArray(data)) data = [data];
+    data.forEach((loc,n)=>{
+      const [, , i, j] = batch[n];
+      for (let d=0; d<DAYS; d++){
+        rain[d][i][j] = loc.daily.precipitation_sum[d];
+        temp[d][i][j] = loc.daily.temperature_2m_max[d];
+      }
+    });
+    done += batch.length;
+    $("status").textContent = `Prévisions Europe… ${Math.round(done/pts.length*100)} %`;
+  }
+  grid = {lats, lons, rain, temp};
+  store.set("gridCache", {t:Date.now(), start:dateISO(0), g:grid});
+}
+
+// Image en projection Mercator, interpolée bilinéairement depuis la grille
+const merc = lat => Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360));
+const imerc = y => (2*Math.atan(Math.exp(y)) - Math.PI/2) * 180/Math.PI;
+function sample(field, lat, lon){
+  const fi = (lat-GRID.latMin)/GRID.step, fj = (lon-GRID.lonMin)/GRID.step;
+  const i0 = Math.max(0, Math.min(grid.lats.length-2, Math.floor(fi)));
+  const j0 = Math.max(0, Math.min(grid.lons.length-2, Math.floor(fj)));
+  const ti = Math.min(1,Math.max(0,fi-i0)), tj = Math.min(1,Math.max(0,fj-j0));
+  const a=field[i0][j0], b=field[i0][j0+1], c=field[i0+1][j0], d=field[i0+1][j0+1];
+  if ([a,b,c,d].some(v=>v==null)) return null;
+  return (a*(1-tj)+b*tj)*(1-ti) + (c*(1-tj)+d*tj)*ti;
+}
+function renderGrid(){
+  if (!grid) return;
+  const field = (mode==="rain" ? grid.rain : grid.temp)[dayIdx];
+  const stops = mode==="rain" ? RAIN_STOPS : TEMP_STOPS;
+  const W = 420, yTop = merc(GRID.latMax), yBot = merc(GRID.latMin);
+  const H = Math.round(W * (yTop-yBot) / ((GRID.lonMax-GRID.lonMin)*Math.PI/180));
+  const cv = document.createElement("canvas"); cv.width=W; cv.height=H;
+  const ctx = cv.getContext("2d"), img = ctx.createImageData(W,H);
+  for (let y=0;y<H;y++){
+    const lat = imerc(yTop - (y+0.5)/H*(yTop-yBot));
+    for (let x=0;x<W;x++){
+      const lon = GRID.lonMin + (x+0.5)/W*(GRID.lonMax-GRID.lonMin);
+      const c = colorAt(stops, sample(field, lat, lon));
+      const k = (y*W+x)*4;
+      img.data[k]=c[0]; img.data[k+1]=c[1]; img.data[k+2]=c[2]; img.data[k+3]=c[3];
+    }
+  }
+  ctx.putImageData(img,0,0);
+  const url = cv.toDataURL();
+  const bounds = [[GRID.latMin,GRID.lonMin],[GRID.latMax,GRID.lonMax]];
+  if (overlay && overlay instanceof L.ImageOverlay) overlay.setUrl(url);
+  else { clearOverlay(); overlay = L.imageOverlay(url, bounds, {opacity:0.75}).addTo(map); }
+  $("dayLbl").textContent = fmtDay(dateISO(dayIdx)) + (dayIdx>=7 ? " (tendance)" : "");
+}
+
+/* ---------- Radar temps réel (RainViewer) ---------- */
+let radar = null; // {host, frames, layers}
+async function loadRadar(){
+  const r = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+  if (!r.ok) throw new Error("RainViewer " + r.status);
+  const d = await r.json();
+  const frames = [...(d.radar.past||[]), ...(d.radar.nowcast||[])];
+  radar = {host:d.host, frames, layers:{}};
+}
+function radarLayer(i){
+  const f = radar.frames[i];
+  if (!radar.layers[f.path]){
+    radar.layers[f.path] = L.tileLayer(radar.host + f.path + "/256/{z}/{x}/{y}/2/1_1.png",
+      {opacity:0, maxNativeZoom:7, maxZoom:12, zIndex:400});
+    radar.layers[f.path].addTo(map);
+  }
+  return radar.layers[f.path];
+}
+function renderRadar(){
+  if (!radar || !radar.frames.length) return;
+  Object.values(radar.layers).forEach(l=>l.setOpacity(0));
+  const i = Math.min(dayIdx, radar.frames.length-1);
+  radarLayer(i).setOpacity(0.8);
+  if (radar.frames[i+1]) radarLayer(i+1); // préchargement
+  const t = new Date(radar.frames[i].time*1000);
+  $("dayLbl").textContent = t.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) +
+    (radar.frames[i].time*1000 > Date.now() ? " (prévu)" : "");
+}
+function clearOverlay(){
+  if (overlay){ map.removeLayer(overlay); overlay=null; }
+  if (radar) Object.values(radar.layers).forEach(l=>l.setOpacity(0));
+}
+
+/* ---------- Modes ---------- */
+async function setMode(m){
+  mode = m; stopPlay();
+  ["mRadar","mRain","mTemp"].forEach(id=>$(id).classList.remove("on"));
+  $({radar:"mRadar",rain:"mRain",temp:"mTemp"}[m]).classList.add("on");
+  legend();
+  try {
+    if (m === "radar"){
+      if (overlay){ map.removeLayer(overlay); overlay=null; }
+      $("status").textContent = "Radar…";
+      if (!radar) await loadRadar();
+      $("slider").max = radar.frames.length-1;
+      dayIdx = radar.frames.findLastIndex(f=>f.time*1000<=Date.now());
+      if (dayIdx < 0) dayIdx = radar.frames.length-1;
+      $("slider").value = dayIdx;
+      renderRadar();
+      $("status").textContent = "Radar des 2 dernières heures";
+    } else {
+      if (radar) Object.values(radar.layers).forEach(l=>l.setOpacity(0));
+      $("slider").max = DAYS-1;
+      if (dayIdx > DAYS-1) dayIdx = 0;
+      $("slider").value = dayIdx;
+      if (!grid) await loadGrid();
+      renderGrid();
+      $("status").textContent = m==="rain" ? "Cumul de pluie du jour (mm)" : "Température max du jour";
+    }
+  } catch(e){
+    $("status").textContent = "⚠️ Données indisponibles (" + e.message + ")";
+  }
+}
+function render(){ mode==="radar" ? renderRadar() : renderGrid(); }
+function stopPlay(){ if (playing){ clearInterval(playing); playing=null; $("play").textContent="▶︎"; } }
+$("play").onclick = () => {
+  if (playing) return stopPlay();
+  $("play").textContent = "⏸";
+  playing = setInterval(()=>{
+    const max = +$("slider").max;
+    dayIdx = dayIdx >= max ? 0 : dayIdx+1;
+    $("slider").value = dayIdx; render();
+  }, mode==="radar" ? 600 : 900);
+};
+$("slider").oninput = e => { stopPlay(); dayIdx = +e.target.value; render(); };
+$("mRadar").onclick = () => setMode("radar");
+$("mRain").onclick = () => { dayIdx = 0; setMode("rain"); };
+$("mTemp").onclick = () => { dayIdx = 0; setMode("temp"); };
+
+/* ---------- Prévision 14 jours pour un lieu ---------- */
+async function loadCity(c){
+  store.set("lastCity", c);
+  if (cityMarker) map.removeLayer(cityMarker);
+  cityMarker = L.circleMarker([c.lat,c.lon],{radius:7,color:"#fff",weight:2,fillColor:"#38bdf8",fillOpacity:1}).addTo(map)
+    .bindTooltip(c.name);
+  const box = $("city");
+  box.innerHTML = `<div class="mut">Chargement de ${c.name}…</div>`;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}` +
+      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,precipitation` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max` +
+      `&forecast_days=${DAYS}&timezone=auto`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json(), cu = d.current, dy = d.daily;
+    const [ico, lbl] = wmo(cu.weather_code);
+    let html = `<div class="now">
+      <div class="ico">${ico}</div>
+      <div><div class="big">${Math.round(cu.temperature_2m)}°</div><div class="mut">ressenti ${Math.round(cu.apparent_temperature)}°</div></div>
+      <div><div style="font-size:20px;font-weight:600">${c.name}${c.country?`, <span class="mut">${c.country}</span>`:""}</div>
+      <div>${lbl}</div>
+      <div class="mut">💧 ${cu.relative_humidity_2m} % · 💨 ${Math.round(cu.wind_speed_10m)} km/h · 🌧️ ${cu.precipitation} mm</div></div>
+    </div><div class="days">`;
+    dy.time.forEach((t,i)=>{
+      const [ic, lb] = wmo(dy.weather_code[i]);
+      const prob = dy.precipitation_probability_max[i];
+      html += `<div class="day${i>=7?" low":""}" title="${lb}">
+        <div class="d">${i===0?"Aujourd'hui":fmtDay(t,true)}</div>
+        <div class="i">${ic}</div>
+        <div class="t"><b>${Math.round(dy.temperature_2m_max[i])}°</b> / <span>${Math.round(dy.temperature_2m_min[i])}°</span></div>
+        <div class="p">🌧️ ${(dy.precipitation_sum[i]??0).toFixed(1)} mm${prob!=null?` · ${prob} %`:""}</div>
+        <div class="w">💨 ${Math.round(dy.wind_speed_10m_max[i])} km/h</div>
+      </div>`;
+    });
+    html += `</div><svg id="chart"></svg><div class="mut">Températures max/min et pluie sur 14 jours · cartes en pointillés = tendance (J+7 à J+13)</div>`;
+    box.innerHTML = html;
+    drawChart(dy);
+  } catch(e){
+    box.innerHTML = `<div class="mut">⚠️ Impossible de charger la prévision (${e.message}).</div>`;
+  }
+}
+function drawChart(dy){
+  const svg = $("chart"), W = svg.clientWidth || 600, H = 150, P = 24, n = dy.time.length;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const tmax = Math.max(...dy.temperature_2m_max), tmin = Math.min(...dy.temperature_2m_min);
+  const pmax = Math.max(10, ...dy.precipitation_sum.map(v=>v||0));
+  const x = i => P + i*(W-2*P)/(n-1);
+  const yT = v => 12 + (tmax - v)/((tmax - tmin)||1)*(H-50);
+  const bw = (W-2*P)/n*0.6;
+  let s = "";
+  dy.precipitation_sum.forEach((v,i)=>{
+    const h = (v||0)/pmax*(H-40);
+    s += `<rect x="${x(i)-bw/2}" y="${H-18-h}" width="${bw}" height="${h}" rx="2" fill="#38bdf8" opacity=".45"/>`;
+  });
+  const line = (arr,col) => `<polyline fill="none" stroke="${col}" stroke-width="2.5" points="${arr.map((v,i)=>`${x(i)},${yT(v)}`).join(" ")}"/>` +
+    arr.map((v,i)=>`<text x="${x(i)}" y="${yT(v)-6}" fill="${col}" font-size="10" text-anchor="middle">${Math.round(v)}</text>`).join("");
+  s += line(dy.temperature_2m_max,"#fca5a5") + line(dy.temperature_2m_min,"#93c5fd");
+  dy.time.forEach((t,i)=>{ s += `<text x="${x(i)}" y="${H-4}" fill="#94a3b8" font-size="10" text-anchor="middle">${new Date(t+"T12:00").getDate()}</text>`; });
+  svg.innerHTML = s;
+}
+
+/* ---------- Recherche, clic, géolocalisation ---------- */
+let qTimer;
+$("q").addEventListener("input", e => {
+  clearTimeout(qTimer);
+  const q = e.target.value.trim();
+  if (q.length < 2){ $("results").style.display="none"; return; }
+  qTimer = setTimeout(async ()=>{
+    try{
+      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=fr`);
+      const d = await r.json();
+      const res = $("results");
+      res.innerHTML = "";
+      (d.results||[]).forEach(p=>{
+        const div = document.createElement("div");
+        div.textContent = `${p.name}${p.admin1?", "+p.admin1:""} — ${p.country||""}`;
+        div.onclick = () => {
+          res.style.display="none"; $("q").value="";
+          map.setView([p.latitude,p.longitude], Math.max(map.getZoom(),6));
+          loadCity({name:p.name, country:p.country, lat:p.latitude, lon:p.longitude});
+        };
+        res.appendChild(div);
+      });
+      res.style.display = d.results ? "block" : "none";
+    }catch(e){}
+  }, 300);
+});
+document.addEventListener("click", e => { if (!e.target.closest(".search")) $("results").style.display="none"; });
+
+map.on("click", e => {
+  const {lat, lng} = e.latlng;
+  loadCity({name:`${lat.toFixed(2)}°, ${lng.toFixed(2)}°`, country:"", lat, lon:((lng+540)%360)-180});
+});
+
+$("geo").onclick = () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p=>{
+    const {latitude:lat, longitude:lon} = p.coords;
+    map.setView([lat,lon], 7);
+    loadCity({name:"Ma position", country:"", lat, lon});
+  }, ()=>{ $("status").textContent = "Position refusée"; });
+};
+
+/* ---------- Démarrage ---------- */
+loadCity(store.get("lastCity") || DEFAULT_CITY);
+setMode("radar");
+</script>
+</body>
+</html>
