@@ -82,6 +82,12 @@
   .kv b{display:block;font-size:18px}
   .raw{font-family:ui-monospace,monospace;font-size:12px;color:var(--mut);word-break:break-all;margin-top:8px}
   #stripes{width:100%;height:70px;display:block;margin-top:6px}
+  #alertBanner{display:block;margin:6px 0 8px;padding:8px 10px;border-radius:10px;background:#422006;border:1px solid #b45309;color:#fde68a;text-decoration:none;font-size:14px;font-weight:600}
+  #alertBanner[hidden]{display:none}
+  .alert{display:flex;gap:10px;align-items:flex-start;padding:9px 6px;border-bottom:1px solid var(--line);font-size:14px;line-height:1.45}
+  .alert:last-of-type{border-bottom:0}
+  .alert .ai{font-size:22px;line-height:1}
+  .alert.rec{background:rgba(251,191,36,.08);border-radius:8px}
   .foot{text-align:center;font-size:12px;color:var(--mut);margin:16px 0 30px}
   .foot a{color:var(--acc)}
 </style>
@@ -94,7 +100,9 @@
     <a href="#cartes" id="b-cartes">Cartes</a>
     <a href="#observations" id="b-observations">Aéroport</a>
     <a href="#climat" id="b-climat">Climat</a>
+    <a href="#records" id="b-records">Records</a>
   </nav>
+  <a id="alertBanner" href="#records" hidden></a>
 </header>
 
 <main>
@@ -140,6 +148,11 @@
     <div id="climBody"><div class="card mut">Chargement…</div></div>
   </section>
 
+  <!-- RECORDS -->
+  <section id="t-records" hidden>
+    <div id="recBody"><div class="card mut">Calcul des classements…</div></div>
+  </section>
+
   <div class="foot">
     <a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (CC BY 4.0) ·
     <a href="https://www.rainviewer.com/">Weather data by RainViewer</a> ·
@@ -158,6 +171,7 @@ const AIRPORT = {lat:37.418, lon:-5.893};
 const FC = "https://api.open-meteo.com/v1/forecast";
 const ARCHIVE = "https://archive-api.open-meteo.com/v1/archive";
 const TZ = "Europe%2FMadrid";
+const RAW = "https://raw.githubusercontent.com/Wimloc-App-Studio/wimloc-app-studio.github.io/meteo-data/";
 const SVQ_DATA = [
   "https://raw.githubusercontent.com/Wimloc-App-Studio/wimloc-app-studio.github.io/meteo-data/svq.json",
   "data/svq.json"
@@ -232,8 +246,8 @@ function gauge(mm, max=25, cls=""){
 /* =========================================================
    Onglets
    ========================================================= */
-const TABS = ["prevision","cartes","observations","climat"];
-const INIT = {prevision:initPrevision, cartes:initCartes, observations:initObs, climat:initClimat};
+const TABS = ["prevision","cartes","observations","climat","records"];
+const INIT = {prevision:initPrevision, cartes:initCartes, observations:initObs, climat:initClimat, records:initRecords};
 const started = {};
 function showTab(){
   let t = location.hash.slice(1);
@@ -530,14 +544,31 @@ function renderRain(){
   $("stepLbl").textContent = fineDayLabel(step);
   $("mapStatus").textContent = `Pluie du jour · Séville : ${fr(bil(FINE, f, SVQ.lat, SVQ.lon))} mm`;
 }
+// Anomalie Europe : calculée une fois par jour par la tâche GitHub ; sinon calcul local sur la péninsule
+let anomEU = null;
+async function loadAnom(){
+  if (anomEU) return;
+  try{
+    const d = await getJSON(RAW + "anom_eu.json?v=" + Math.floor(Date.now()/3600e3));
+    const off = epochDay(todayISO()) - epochDay(d.date);
+    if (off >= 0 && off <= 3){
+      const g = {latMin:d.grid.latMin, lonMin:d.grid.lonMin, step:d.grid.step};
+      anomEU = {g, start: isoFromEpoch(epochDay(d.date) + off), anom: d.anom.slice(off), fc: d.fc.slice(off), eu:true};
+      return;
+    }
+  }catch(e){}
+  await loadClimo();
+  anomEU = {g: CLIM, start: climo.start, anom: climo.anom, fc: climo.fc, eu:false};
+}
 function renderAnom(){
-  const a = climo.anom[step], f = climo.fc[step];
-  const val = (la,lo) => bic(CLIM, a, la, lo);
-  setOverlay(renderField(CLIM, a, val, ANOM_STOPS), 0.65);
-  const iso = isoFromEpoch(epochDay(climo.start) + step);
+  const G = anomEU.g, a = anomEU.anom[step], f = anomEU.fc[step];
+  const val = (la,lo) => bic(G, a, la, lo);
+  setOverlay(renderField(G, a, val, ANOM_STOPS, 420), 0.65);
+  const iso = isoFromEpoch(epochDay(anomEU.start) + step);
   $("stepLbl").textContent = new Date(iso + "T12:00").toLocaleDateString("fr-FR",{weekday:"short", day:"numeric", month:"short"}) + (step >= 7 ? " ·tend." : "");
   const v = val(SVQ.lat, SVQ.lon), t = bic(CLIM, f, SVQ.lat, SVQ.lon);
-  $("mapStatus").textContent = `Écart de la température moyenne du jour à la normale 1991-2020 · Séville : ${v>0?"+":""}${fr(v)} °C (moy. ${fr(t)} °C)`;
+  $("mapStatus").textContent = `Écart de la température moyenne du jour à la normale 1991-2020 · Séville : ${v>0?"+":""}${fr(v)} °C (moy. ${fr(t)} °C)` +
+    (anomEU.eu ? "" : " · carte Europe pas encore prête : péninsule seulement");
 }
 function contourSegs(G, lats, lons, lev){
   const segs = [];
@@ -612,7 +643,7 @@ const MODES = {
   radar: {load: loadRadar, render: renderRadar, steps: () => radar ? radar.frames.length : 1, view:"ib", speed:600,
           legend:["Faible","linear-gradient(90deg,#9bd2ff,#2e7bff,#1fbf5a,#f5d32a,#f5761e,#d81e3c,#b228c8)","Intense"]},
   rain:  {load: loadFine, render: renderRain, steps: () => 14, view:"ib", speed:900, stops:RAIN_STOPS.slice(2), legend:["1 mm",null,"80 mm / jour"]},
-  anom:  {load: loadClimo, render: renderAnom, steps: () => 14, view:"ib", speed:900, stops:ANOM_STOPS, legend:["-8 °C",null,"+8 °C"]},
+  anom:  {load: loadAnom, render: renderAnom, steps: () => anomEU ? anomEU.anom.length : 14, view:"eu", speed:900, stops:ANOM_STOPS, legend:["-8 °C",null,"+8 °C"]},
   pres:  {load: loadSyn, render: renderPres, steps: () => syn ? syn.times.length : 56, view:"syn", speed:500, stops:PRES_STOPS, legend:["960 hPa",null,"1045 hPa"]},
 };
 function legend(m){
@@ -628,6 +659,7 @@ async function setMode(m){
   legend(m); clearMap();
   const M = MODES[m];
   if (M.view === "syn") map.fitBounds([[33,-22],[60,20]]);
+  else if (M.view === "eu") map.fitBounds([[35,-11],[69,40]]);
   else if (map.getZoom() < 5) map.setView([38.6,-4.5], 5);
   try{
     $("mapStatus").textContent = "Chargement…";
@@ -937,8 +969,220 @@ async function initClimat(){
   showYear(years[0]);
 }
 
+
+/* =========================================================
+   5. ALERTES RECORDS (depuis 1991, aéroport)
+   ========================================================= */
+const MONTHS_FULL = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const deMois = m => (["avril","août","octobre"].includes(MONTHS_FULL[m-1]) ? "d'" : "de ") + MONTHS_FULL[m-1];
+const ordinal = n => n === 1 ? "1er" : n + "e";
+const dim = (y,m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+const R1 = v => v == null || isNaN(v) ? null : Math.round(v*10)/10;
+
+// Paramètres journaliers (top 10)
+const DP = [
+  {k:"tx",  lbl:"Tmax",                   u:"°C", f:d=>d.tx, dirs:["hi","lo"], ico:["🔥","🥶"]},
+  {k:"tn",  lbl:"Tmin",                   u:"°C", f:d=>d.tn, dirs:["hi","lo"], ico:["🔥","🥶"]},
+  {k:"tm",  lbl:"Température moyenne",    u:"°C", f:d=>d.tx!=null&&d.tn!=null?R1((d.tx+d.tn)/2):null, dirs:["hi","lo"], ico:["🔥","🥶"]},
+  {k:"amp", lbl:"Écart entre Tmin et Tmax", u:"°C", f:d=>d.tx!=null&&d.tn!=null?R1(d.tx-d.tn):null, dirs:["hi","lo"], ico:["↕️","↕️"]},
+  {k:"p",   lbl:"Pluie du jour",          u:"mm", f:d=>d.p!=null&&d.p>=1?d.p:null, dirs:["hi"], ico:["🌧️"]},
+];
+// Paramètres mensuels (top 3) ; kind sert pour les mois pas encore finis
+const MP = [
+  {k:"txMax",   lbl:"Tmax la plus haute du mois",          u:"°C", kind:"max",  t:"T", ico:["🔥","🥶"]},
+  {k:"txMin",   lbl:"Tmax la plus basse du mois",          u:"°C", kind:"min",  t:"T", ico:["🔥","🥶"]},
+  {k:"txMean",  lbl:"Moyenne mensuelle des Tmax",          u:"°C", kind:"mean", t:"T", ico:["🔥","🥶"]},
+  {k:"tnMax",   lbl:"Tmin la plus haute du mois",          u:"°C", kind:"max",  t:"T", ico:["🔥","🥶"]},
+  {k:"tnMin",   lbl:"Tmin la plus basse du mois",          u:"°C", kind:"min",  t:"T", ico:["🔥","🥶"]},
+  {k:"tnMean",  lbl:"Moyenne mensuelle des Tmin",          u:"°C", kind:"mean", t:"T", ico:["🔥","🥶"]},
+  {k:"tm",      lbl:"Température moyenne du mois",         u:"°C", kind:"mean", t:"T", ico:["🔥","🥶"]},
+  {k:"amp",     lbl:"Écart moyen Tmin–Tmax",               u:"°C", kind:"mean", t:"T", ico:["↕️","↕️"]},
+  {k:"pSum",    lbl:"Cumul de pluie",                      u:"mm", kind:"sum",  t:"P", ico:["🌧️","☀️"]},
+  {k:"rainRun", lbl:"Jours de pluie consécutifs (max)",    u:"j",  kind:"max",  t:"P", ico:["🌧️","☀️"]},
+  {k:"rainDays",lbl:"Nombre de jours de pluie",            u:"j",  kind:"sum",  t:"P", ico:["🌧️","☀️"]},
+  {k:"dryRun",  lbl:"Jours sans pluie consécutifs (max)",  u:"j",  kind:"max",  t:"P", ico:["☀️","🌧️"]},
+  {k:"dryDays", lbl:"Nombre de jours sans pluie",          u:"j",  kind:"sum",  t:"P", ico:["☀️","🌧️"]},
+];
+function fmtV(v, u){ return u === "j" ? `${v} j` : `${fr(v)} ${u}`; }
+
+function monthStats(list){
+  const st = {nT:0, nP:0};
+  const tx=[], tn=[], tm=[], amp=[];
+  let pSum=0, rainDays=0, dryDays=0, rr=0, dr=0, rainRun=0, dryRun=0;
+  list.forEach(d => {
+    if (d.tx != null) tx.push(d.tx);
+    if (d.tn != null) tn.push(d.tn);
+    if (d.tx != null && d.tn != null){ st.nT++; tm.push((d.tx+d.tn)/2); amp.push(d.tx-d.tn); }
+    if (d.p != null){
+      st.nP++; pSum += d.p;
+      if (d.p >= 1){ rainDays++; rr++; dr = 0; } else { dryDays++; dr++; rr = 0; }
+      rainRun = Math.max(rainRun, rr); dryRun = Math.max(dryRun, dr);
+    } else { rr = 0; dr = 0; }
+  });
+  const mean = a => a.length ? R1(a.reduce((s,x)=>s+x,0)/a.length) : null;
+  Object.assign(st, {
+    txMax: tx.length ? Math.max(...tx) : null, txMin: tx.length ? Math.min(...tx) : null, txMean: mean(tx),
+    tnMax: tn.length ? Math.max(...tn) : null, tnMin: tn.length ? Math.min(...tn) : null, tnMean: mean(tn),
+    tm: mean(tm), amp: mean(amp),
+    pSum: st.nP ? R1(pSum) : null, rainDays: st.nP ? rainDays : null, dryDays: st.nP ? dryDays : null,
+    rainRun: st.nP ? rainRun : null, dryRun: st.nP ? dryRun : null
+  });
+  return st;
+}
+function rankTxt(r, dir){
+  const hl = dir === "hi" ? "haute" : "basse";
+  if (r.rank === 1 && !r.ties) return `<b>RECORD</b> : valeur la plus ${hl}`;
+  return `<b>${r.rank === 1 ? "1re" : r.rank + "e"}${r.ties ? " ex æquo" : ""}</b> valeur la plus ${hl}`;
+}
+function rankOf(v, ref, dir){
+  let better=0, eq=0, best=null;
+  ref.forEach(r => {
+    if (dir === "hi" ? r.v > v : r.v < v) better++; else if (r.v === v) eq++;
+    if (!best || (dir === "hi" ? r.v > best.v : r.v < best.v)) best = r;
+  });
+  return {rank: better+1, pess: better+eq+1, ties: eq, best, n: ref.length};
+}
+
+let recP = null;
+function recordsResult(){ if (!recP) recP = computeRecords(); return recP; }
+async function computeRecords(){
+  const hist = await cached("hist", todayISO(), 6, () => getJSON(RAW + "svq_hist.json?v=" + Math.floor(Date.now()/3600e3)));
+  const fc = await cached("fcRec", todayISO(), 1, () => getJSON(`${FC}?latitude=${AIRPORT.lat}&longitude=${AIRPORT.lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&past_days=10&forecast_days=14&timezone=${TZ}`));
+  const today = todayISO(), eT = epochDay(today);
+  const days = new Map(), s0 = epochDay(hist.start);
+  for (let k=0; k<hist.tmax.length; k++) days.set(isoFromEpoch(s0+k), {tx:hist.tmax[k], tn:hist.tmin[k], p:hist.prcp[k], src:"obs"});
+  fc.daily.time.forEach((t,k) => {
+    const m = {tx:R1(fc.daily.temperature_2m_max[k]), tn:R1(fc.daily.temperature_2m_min[k]), p:R1(fc.daily.precipitation_sum[k])};
+    if (t >= today){ days.set(t, {...m, src:"prev"}); return; }
+    const o = days.get(t);
+    if (!o){ days.set(t, {...m, src:"est"}); return; }
+    let filled = false;
+    ["tx","tn","p"].forEach(x => { if (o[x] == null && m[x] != null){ o[x] = m[x]; filled = true; } });
+    if (filled) o.src = "est";
+  });
+  const lastISO = [...days.keys()].sort().pop();
+
+  // Références journalières par mois calendaire (observations, avant les 7 derniers jours)
+  const refD = {};
+  // Références mensuelles : mois complets passés, depuis 1991
+  const byMonth = {};
+  days.forEach((d, iso) => {
+    const e = epochDay(iso), y = +iso.slice(0,4), m = +iso.slice(5,7);
+    if (y < 1991 || d.src !== "obs") return;
+    if (e < eT - 7){
+      DP.forEach(P => { const v = P.f(d); if (v == null) return;
+        ((refD[m] ||= {})[P.k] ||= []).push({v, date: iso}); });
+    }
+    const key = iso.slice(0,7);
+    if (key < today.slice(0,7)) (byMonth[key] ||= []).push(d);
+  });
+  const refM = {};
+  Object.entries(byMonth).forEach(([key, list]) => {
+    const y = +key.slice(0,4), m = +key.slice(5,7);
+    (refM[m] ||= []).push({y, st: monthStats(list), dim: dim(y,m)});
+  });
+
+  const alerts = [];
+  // --- Jours : 7 derniers jours observés + prévisions ---
+  for (let e = eT - 7; e <= epochDay(lastISO); e++){
+    const iso = isoFromEpoch(e), d = days.get(iso); if (!d) continue;
+    const m = +iso.slice(5,7), when = e < eT ? (d.src === "obs" ? "observé" : "estimé") : e === eT ? "aujourd'hui, prévu" : "prévu";
+    DP.forEach(P => {
+      const v = P.f(d); if (v == null) return;
+      const ref = ((refD[m] || {})[P.k] || []).filter(r => r.date !== iso);
+      if (ref.length < 300) return;
+      P.dirs.forEach((dir, di) => {
+        const r = rankOf(v, ref, dir);
+        if (r.pess > 10) return;
+        alerts.push({type:"jour", ico:P.ico[di], rank:r.rank, ties:r.ties, sort: r.rank + (e < eT ? 0.5 : 0),
+          html:`<b>${new Date(iso+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}</b> <small>(${when})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
+            → ${rankTxt(r, dir)} pour un jour ${deMois(m)} depuis 1991
+            <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u)} le ${new Date(r.best.date+"T12:00").toLocaleDateString("fr-FR")})</small>`});
+      });
+    });
+  }
+  // --- Mois : en cours (observé + prévu), et le mois précédent les 10 premiers jours ---
+  const tables = [];
+  function evalMonth(y, m, label){
+    const n = dim(y,m), list = [];
+    let complete = true;
+    for (let k=1; k<=n; k++){
+      const iso = `${y}-${String(m).padStart(2,"0")}-${String(k).padStart(2,"0")}`;
+      const d = days.get(iso);
+      if (!d){ complete = false; break; }
+      list.push(d);
+    }
+    if (!list.length) return;
+    const st = monthStats(list), ref = (refM[m] || []).filter(r => r.y !== y);
+    const upto = list.length;
+    const lbl = `${MONTHS_FULL[m-1]} ${y}` + (complete ? (label || " · projection fin de mois (observé + prévu)") : ` · du 1er au ${upto} (observé + prévu)`);
+    const rows = [];
+    MP.forEach(P => {
+      const v = st[P.k]; if (v == null) return;
+      const okRef = ref.filter(r => P.t === "T" ? r.st.nT >= r.dim - 3 : r.st.nP >= r.dim - 1).map(r => ({v: r.st[P.k], date: r.y})).filter(r => r.v != null);
+      if (okRef.length < 15) return;
+      const dirs = complete ? ["hi","lo"] : P.kind === "min" ? ["lo"] : P.kind === "mean" ? ["hi","lo"] : ["hi"];
+      const hi = rankOf(v, okRef, "hi"), lo = rankOf(v, okRef, "lo");
+      rows.push({P, v, hi, lo, n: okRef.length, dirs});
+      dirs.forEach(dir => {
+        const r = dir === "hi" ? hi : lo;
+        if (r.pess > 3) return;
+        alerts.push({type:"mois", ico: P.ico[dir==="hi"?0:1], rank:r.rank, ties:r.ties, sort: r.rank - 0.25,
+          html:`<b>${MONTHS_FULL[m-1]} ${y}</b> <small>(${complete ? (label ? "terminé" : "observé + prévu jusqu'à la fin du mois") : "à date, observé + prévu"})</small> · ${P.lbl} : <b>${fmtV(v,P.u)}</b>
+            → ${rankTxt(r, dir)} pour un mois ${deMois(m)} depuis 1991
+            <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u)} en ${r.best.date})</small>`});
+      });
+    });
+    tables.push({lbl, rows, m});
+  }
+  const [cy, cm, cd] = today.split("-").map(Number);
+  evalMonth(cy, cm);
+  if (cd <= 10){ const py = cm === 1 ? cy-1 : cy, pm = cm === 1 ? 12 : cm-1; evalMonth(py, pm, " · terminé"); }
+  alerts.sort((a,b) => a.sort - b.sort);
+  return {alerts, tables, histEnd: hist.end};
+}
+
+async function initRecords(){
+  const el = $("recBody");
+  try{
+    const R = await recordsResult();
+    let h = `<div class="card"><h2>🏆 Alertes records</h2>`;
+    if (!R.alerts.length) h += `<div class="mut">Aucun paramètre proche d'un record pour le moment.</div>`;
+    else h += R.alerts.map(a => `<div class="alert${a.rank===1?" rec":""}"><span class="ai">${a.rank===1?"🏆":a.ico}</span><div>${a.html}</div></div>`).join("");
+    h += `<div class="mut" style="margin-top:8px">Alerte si un mois entre dans le top 3, ou un jour dans le top 10, depuis 1991, en comparant au même mois de l'année.</div></div>`;
+    R.tables.forEach(T => {
+      h += `<div class="card"><h2>${T.lbl}</h2><div class="tw"><table>
+        <tr><th>Paramètre</th><th>Valeur</th><th>Rang haut</th><th>Rang bas</th><th>Record haut</th><th>Record bas</th></tr>`;
+      T.rows.forEach(r => {
+        const cls = rk => rk.pess <= 3 ? ` style="color:#fbbf24;font-weight:700"` : "";
+        h += `<tr><td style="white-space:normal;min-width:140px">${r.P.lbl}</td><td><b>${fmtV(r.v,r.P.u)}</b></td>
+          <td${r.dirs.includes("hi")?cls(r.hi):""}>${r.dirs.includes("hi") ? ordinal(r.hi.rank)+"/"+(r.n+1) : "—"}</td>
+          <td${r.dirs.includes("lo")?cls(r.lo):""}>${r.dirs.includes("lo") ? ordinal(r.lo.rank)+"/"+(r.n+1) : "—"}</td>
+          <td>${fmtV(r.hi.best.v,r.P.u)} <small>${r.hi.best.date}</small></td><td>${fmtV(r.lo.best.v,r.P.u)} <small>${r.lo.best.date}</small></td></tr>`;
+      });
+      h += `</table></div><div class="mut" style="margin-top:6px">Rang parmi les mois ${deMois(T.m)} depuis 1991. Pour un mois pas encore fini, seuls les classements déjà acquis sont donnés (« — » sinon).</div></div>`;
+    });
+    h += `<div class="card mut">Jour de pluie = au moins 1 mm. Mesures de la station Séville Aéroport (GHCN-Daily NOAA et Meteostat) jusqu'au ${new Date(R.histEnd+"T12:00").toLocaleDateString("fr-FR")} ;
+      les jours suivants viennent du modèle Open-Meteo (« estimé » pour le passé, « prévu » pour l'avenir).</div>`;
+    el.innerHTML = h;
+  }catch(e){
+    el.innerHTML = `<div class="card mut">⚠️ Alertes indisponibles (${e.message}). L'historique est préparé automatiquement : réessaie dans un moment.</div>`;
+  }
+}
+async function alertBanner(){
+  try{
+    const R = await recordsResult();
+    if (!R.alerts.length) return;
+    const nRec = R.alerts.filter(a => a.rank === 1).length;
+    const b = $("alertBanner");
+    b.innerHTML = `${nRec ? "🏆" : "⚠️"} ${R.alerts.length} alerte${R.alerts.length>1?"s":""} record${nRec ? ` dont ${nRec} record${nRec>1?"s":""} battu${nRec>1?"s":""}` : ""} — voir`;
+    b.hidden = false;
+  }catch(e){}
+}
+
 /* ========================================================= */
 showTab();
+alertBanner();
 </script>
 </body>
 </html>
