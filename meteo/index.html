@@ -792,6 +792,58 @@ function obsTime(m){
   const t = m.obsTime ? new Date(m.obsTime*1000) : new Date(m.reportTime);
   return t;
 }
+// Pluie mesurée : messages SYNOP de la station. Les cumuls sur 3, 6 et 12 h s'emboîtent :
+// on en déduit la pluie de chaque tranche de 3 h (ex. 12 h − 6 h − 3 h).
+function rainBlocks(syn){
+  const iv = syn.filter(x => x.rr).map(x => ({s: x.time - x.rr.h*3600, e: x.time, mm: x.rr.mm}));
+  const known = new Map(), B = 3*3600;
+  for (let pass=0; pass<12; pass++){
+    let changed = false;
+    iv.forEach(v => {
+      if ((v.e - v.s) % B) return;
+      const ends = []; for (let t=v.s+B; t<=v.e; t+=B) ends.push(t);
+      const unk = ends.filter(t => !known.has(t));
+      if (unk.length !== 1) return;
+      const sum = ends.filter(t => known.has(t)).reduce((a,t) => a + known.get(t), 0);
+      known.set(unk[0], Math.max(0, Math.round((v.mm - sum)*10)/10)); changed = true;
+    });
+    if (!changed) break;
+  }
+  return known;
+}
+function rainCard(d, m){
+  const syn = (d.synop || []).filter(x => x.rr);
+  const raining = m && /(RA|DZ|SH)/.test(m.wxString || "");
+  let h = `<div class="card"><h2>Pluie mesurée ces dernières heures</h2>`;
+  if (raining) h += `<div style="color:#7dd3fc;font-weight:600;margin-bottom:6px">Il pleut en ce moment : ${decodeWx(m.wxString)}.</div>`;
+  if (!syn.length){
+    return h + `<div class="mut">Pas encore de message avec les quantités de pluie.</div></div>`;
+  }
+  const known = rainBlocks(syn), B = 3*3600;
+  const last = Math.max(...known.keys());
+  const hm = sec => new Date(sec*1000).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Madrid"});
+  const day = sec => new Date(sec*1000).toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",timeZone:"Europe/Madrid"});
+  let tot = 0, miss = 0;
+  for (let k=0; k<8; k++){ const v = known.get(last - k*B); if (v == null) miss++; else tot += v; }
+  let tot6 = 0; for (let k=0; k<2; k++) tot6 += known.get(last - k*B) || 0;
+  h += `<div class="kv" style="margin-bottom:10px">
+      <div><small>Dernières 6 h</small><b style="color:#7dd3fc">${fr(tot6)} mm</b></div>
+      <div><small>Dernières 24 h</small><b style="color:#7dd3fc">${miss ? "≥ " : ""}${fr(tot)} mm</b></div>
+      <div><small>Mesuré jusqu'à</small><b style="font-size:15px">${hm(last)}</b></div>
+    </div>`;
+  let prevDay = "";
+  for (let k=0; k<16; k++){
+    const e = last - k*B, v = known.get(e), dd = day(e - B);
+    if (dd !== prevDay){ h += `<div class="mut" style="margin:8px 0 2px;font-weight:600">${dd}</div>`; prevDay = dd; }
+    h += `<div style="display:grid;grid-template-columns:110px 56px 1fr;gap:8px;align-items:center;padding:4px 0;font-size:13px">
+      <span>${hm(e - B)} → ${hm(e)}</span>
+      <b style="color:#7dd3fc;text-align:right">${v == null ? "<small>—</small>" : v ? fr(v)+" mm" : "<small>0</small>"}</b>
+      ${gauge(v || 0, 5, "sm")}
+    </div>`;
+  }
+  h += `<div class="mut" style="margin-top:6px">Quantités mesurées par la station (messages SYNOP), par tranches de 3 heures. Jauge pleine = 5 mm.</div></div>`;
+  return h;
+}
 async function initObs(){
   const el = $("obsBody");
   const d = await svqData();
@@ -819,6 +871,7 @@ async function initObs(){
       </div>
       <div class="raw">${m.rawOb || ""}</div>
     </div>`;
+    html += rainCard(d, m);
     html += `<div class="card"><h2>Relevés des dernières 24 h</h2><div class="tw"><table>
       <tr><th>Heure</th><th>T°</th><th>Rosée</th><th>Hum.</th><th>Vent</th><th>Pression</th><th>Visi.</th><th>Temps</th></tr>`;
     const cut = Date.now() - 24*3600e3;
