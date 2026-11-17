@@ -37,7 +37,7 @@
 
   /* 48 h */
   .strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
-  .hr{min-width:58px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
+  .hr{min-width:72px;max-width:72px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
   .hr .i{font-size:22px}
   .hr .vb{height:34px;display:flex;align-items:flex-end;justify-content:center;margin:3px 0}
   .hr .vb i{width:14px;background:#3b82f6;border-radius:3px 3px 0 0}
@@ -45,7 +45,7 @@
 
   /* 14 jours */
   .scale{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin:0 0 4px}
-  .row{display:grid;grid-template-columns:72px 32px 46px 1fr 60px;gap:8px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line)}
+  .row{display:grid;grid-template-columns:78px 46px 1fr 60px;gap:8px;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
   .row.low{opacity:.75}
   .row .dt b{display:block;font-size:14px}
@@ -287,7 +287,6 @@ function renderNow(d){
   const c = d.current, dy = d.daily;
   const hm = s => s ? s.slice(11,16) : "—";
   $("nowBox").innerHTML = `<div class="now">
-    <div class="ico">${wIcon(c.weather_code, c.is_day)}</div>
     <div><div class="big">${r0(c.temperature_2m)}°</div><div class="mut">ressenti ${r0(c.apparent_temperature)}°</div></div>
     <div class="det"><b>${wLabel(c.weather_code)}</b><br>
       ${arrow(c.wind_direction_10m)} ${cardinal(c.wind_direction_10m)} ${r0(c.wind_speed_10m)} km/h <small>raf. ${r0(c.wind_gusts_10m)}</small><br>
@@ -310,7 +309,7 @@ function renderStrip(d){
     const lbl = newDay ? new Date(h.time[i]).toLocaleDateString("fr-FR",{weekday:"short"}) + " " + hour + "h" : hour + "h";
     html += `<div class="hr${newDay?" newday":""}">
       <div><b>${lbl}</b></div>
-      <div class="i">${wIcon(h.weather_code[i], h.is_day[i])}</div>
+      <div><small>${wLabel(h.weather_code[i])}</small></div>
       <div><b>${r0(h.temperature_2m[i])}°</b></div>
       <div class="vb"><i style="height:${Math.min(34, rain/6*34)}px"></i></div>
       <div style="color:#7dd3fc">${rain >= 0.1 ? fr(rain)+" mm" : "<small>sec</small>"}</div>
@@ -337,13 +336,13 @@ function renderHello(d){
   lines.push(`Demain : ${wLabel(y.weather_code[1]).toLowerCase()}, <b>${r0(y.temperature_2m_min[1])}°</b> au réveil et <b>${r0(y.temperature_2m_max[1])}°</b> l'après-midi${(y.precipitation_sum[1]||0) >= 1 ? `, avec ${fr(y.precipitation_sum[1])} mm de pluie — prends un parapluie ☂️` : ""}.`);
   const start = hour < 17 ? 0 : 1;
   let nx = -1; for (let i=start; i<y.time.length; i++) if ((y.precipitation_sum[i]||0) >= 1){ nx = i; break; }
-  if (nx < 0) lines.push(`☀️ Pas de pluie notable prévue dans les 14 prochains jours.`);
-  else if (nx > 1) lines.push(`🌧️ Prochaine pluie : <b>${dayName(y.time[nx], nx).toLowerCase()}</b> (${fr(y.precipitation_sum[nx])} mm${y.precipitation_probability_max[nx] ? `, ${y.precipitation_probability_max[nx]} % de risque` : ""}).`);
+  if (nx < 0) lines.push(`Pas de pluie notable prévue dans les 14 prochains jours.`);
+  else if (nx > 1) lines.push(`Prochaine pluie : <b>${dayName(y.time[nx], nx).toLowerCase()}</b> (${fr(y.precipitation_sum[nx])} mm${y.precipitation_probability_max[nx] ? `, ${y.precipitation_probability_max[nx]} % de risque` : ""}).`);
   const t0 = y.temperature_2m_max.slice(0,3).reduce((a,b)=>a+b,0)/3, t1 = y.temperature_2m_max.slice(4,8).reduce((a,b)=>a+b,0)/4;
   if (t1 - t0 >= 2) lines.push(`📈 Ça se réchauffe la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
   else if (t0 - t1 >= 2) lines.push(`📉 Ça se rafraîchit la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
   const sunT = (y.sunshine_duration[0]||0)/3600;
-  if (hour < 17 && sunT >= 7) lines.push(`😎 Belle journée : ${hmTxt(sunT)} de soleil.`);
+  if (hour < 17 && sunT >= 7) lines.push(`Belle journée : ${hmTxt(sunT)} de soleil.`);
   $("helloBox").innerHTML = `<div class="hi">${salut} Thomas 👋</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
 }
 function renderDays(d){
@@ -356,13 +355,12 @@ function renderDays(d){
     const dayH = y.daylight_duration && y.daylight_duration[i] != null ? y.daylight_duration[i]/3600 : null;
     html += `<div class="row${i>=7?" low":""}" title="${wLabel(y.weather_code[i])}">
       <div class="dt"><b>${dayName(t,i)}</b><small>${wLabel(y.weather_code[i])}</small></div>
-      <div class="ic">${wIcon(y.weather_code[i])}</div>
       <div class="tt"><b>${r0(y.temperature_2m_max[i])}°</b><span>${r0(y.temperature_2m_min[i])}°</span></div>
       <div>
         <div class="rl">${mm >= 0.1 ? `<b>${fr(mm)} mm${mm>25?" ▸":""}</b>` : `<span class="dry">sec</span>`}
           <small>${prob ? prob+" %" : ""}</small></div>
         ${gauge(mm)}
-        <div class="sl"><span>☀️ ${hmTxt(sun)}</span><small>${dayH ? "sur " + hmTxt(dayH) : ""}</small></div>
+        <div class="sl"><span>Soleil ${hmTxt(sun)}</span><small>${dayH ? "sur " + hmTxt(dayH) : ""}</small></div>
         ${sunGauge(sun || 0, dayH)}
       </div>
       <div class="wd">${arrow(y.wind_direction_10m_dominant[i])} ${r0(y.wind_speed_10m_max[i])}<small> km/h</small><br><small>raf. ${r0(y.wind_gusts_10m_max[i])}</small></div>
