@@ -20,10 +20,14 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Récupérer les données (METAR + Meteostat)
+      - name: Reprendre l'anomalie Europe déjà calculée
+        run: |
+          mkdir -p /tmp/out
+          git fetch -q --depth=1 origin meteo-data && git show FETCH_HEAD:anom_eu.json > /tmp/out/anom_eu.json || rm -f /tmp/out/anom_eu.json
+      - name: Récupérer les données (METAR, Meteostat, GHCN, anomalie Europe)
         run: python3 meteo/fetch_svq.py /tmp/out
       - name: Publier sur la branche meteo-data
         env:

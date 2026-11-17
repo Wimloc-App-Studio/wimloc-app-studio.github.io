@@ -209,6 +209,7 @@ for url in (f"https://data.meteostat.net/monthly/{WMO}.csv.gz",
 
 # ---------- Compléter avec GHCN-Daily (NOAA), série longue et plus complète ----------
 ghcn_filled = 0
+ghcn_days = {}
 ghcn_gaps = []
 try:
     txt = get_retry("https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/SPE00120512.csv")
@@ -229,6 +230,8 @@ try:
         raw_rows.append((date, val("PRCP"), val("TMAX"), val("TMIN")))
     tmax_vals = [x[2] for x in raw_rows if x[2] is not None]
     scale = 10.0 if tmax_vals and max(abs(v) for v in tmax_vals) > 60 else 1.0  # dixièmes de mm / de °C
+    for date, p, tx, tn in raw_rows:
+        ghcn_days[date] = (None if p is None else p / scale, None if tx is None else tx / scale, None if tn is None else tn / scale)
     acc = {}
     for date, p, tx, tn in raw_rows:
         k = (int(date[:4]), int(date[5:7]))
@@ -285,3 +288,118 @@ out["ghcn_gaps"] = ghcn_gaps
 with open(os.path.join(dest, "svq.json"), "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
 print(f"metar={len(metar)} daily={len(daily_list)} monthly={len(monthly)} ghcn_filled={ghcn_filled} errors={errors}")
+
+# ---------- Historique journalier depuis 1991 (pour les alertes records) ----------
+try:
+    start = dt.date(1991, 1, 1)
+    end = dt.date.today() - dt.timedelta(days=1)
+    tx_l, tn_l, p_l = [], [], []
+    d = start
+    while d <= end:
+        k = d.isoformat()
+        g = ghcn_days.get(k, (None, None, None))
+        ms = daily.get(k) or {}
+        p = g[0] if g[0] is not None else ms.get("prcp")
+        tx = g[1] if g[1] is not None else ms.get("tmax")
+        tn = g[2] if g[2] is not None else ms.get("tmin")
+        tx_l.append(None if tx is None else round(tx, 1))
+        tn_l.append(None if tn is None else round(tn, 1))
+        p_l.append(None if p is None else round(p, 1))
+        d += dt.timedelta(days=1)
+    with open(os.path.join(dest, "svq_hist.json"), "w", encoding="utf-8") as f:
+        json.dump({"start": start.isoformat(), "end": end.isoformat(), "tmax": tx_l, "tmin": tn_l, "prcp": p_l,
+                   "source": "GHCN-Daily SPE00120512 (NOAA) + Meteostat 08391"}, f, separators=(",", ":"))
+    print("hist", len(tx_l), "jours, Tmax manquants", tx_l.count(None), "pluie manquante", p_l.count(None))
+except Exception as e:  # noqa: BLE001
+    print("hist error", e)
+
+# ---------- Anomalie de température Europe (une fois par jour) ----------
+OM_FC = "https://api.open-meteo.com/v1/forecast"
+OM_AR = "https://archive-api.open-meteo.com/v1/archive"
+EU = {"latMin": 34, "latMax": 70, "lonMin": -12, "lonMax": 42, "step": 3}
+YEARS = [1991, 1995, 1999, 2003, 2007, 2011, 2015, 2019]
+spent = []
+
+
+def paced(n):
+    """Reste sous 500 appels Open-Meteo par minute glissante."""
+    while True:
+        now = time.time()
+        while spent and now - spent[0][0] > 61:
+            spent.pop(0)
+        if sum(x[1] for x in spent) + n <= 500:
+            spent.append((now, n))
+            return
+        time.sleep(max(1, 61 - (now - spent[0][0])))
+
+
+def om_grid(base, params, pts):
+    out = []
+    for k in range(0, len(pts), 100):
+        b = pts[k:k + 100]
+        paced(len(b))
+        url = (f"{base}?latitude={','.join(str(p[0]) for p in b)}&longitude={','.join(str(p[1]) for p in b)}&{params}")
+        for attempt in range(3):
+            try:
+                r = json.loads(get(url))
+                break
+            except Exception:  # noqa: BLE001
+                if attempt == 2:
+                    raise
+                time.sleep(65)
+        out += r if isinstance(r, list) else [r]
+    return out
+
+
+anom_path = os.path.join(dest, "anom_eu.json")
+today_utc = dt.datetime.now(dt.timezone.utc).date()
+prev = None
+try:
+    with open(anom_path, encoding="utf-8") as f:
+        prev = json.load(f)
+except Exception:  # noqa: BLE001
+    pass
+if prev and prev.get("date") == today_utc.isoformat():
+    print("anomalie Europe déjà à jour")
+else:
+    try:
+        lats = [EU["latMin"] + i * EU["step"] for i in range(int((EU["latMax"] - EU["latMin"]) / EU["step"]) + 1)]
+        lons = [EU["lonMin"] + j * EU["step"] for j in range(int((EU["lonMax"] - EU["lonMin"]) / EU["step"]) + 1)]
+        pts = [(la, lo, i, j) for i, la in enumerate(lats) for j, lo in enumerate(lons)]
+        N = 14
+        ssum = [[[0.0] * len(lons) for _ in lats] for _ in range(N)]
+        cnt = [[[0] * len(lons) for _ in lats] for _ in range(N)]
+        for y in YEARS:
+            md = today_utc.strftime("%m-%d")
+            if md == "02-29" and y % 4:
+                md = "02-28"
+            s0 = dt.date.fromisoformat(f"{y}-{md}")
+            res = om_grid(OM_AR, f"daily=temperature_2m_mean&start_date={s0}&end_date={s0 + dt.timedelta(days=N - 1)}&timezone=GMT", pts)
+            for loc, (_, _, i, j) in zip(res, pts):
+                for k, v in enumerate((loc.get("daily") or {}).get("temperature_2m_mean") or []):
+                    if v is not None and k < N:
+                        ssum[k][i][j] += v
+                        cnt[k][i][j] += 1
+            print("normale", y, "ok")
+        mean = [[[ssum[k][i][j] / cnt[k][i][j] if cnt[k][i][j] else None for j in range(len(lons))] for i in range(len(lats))] for k in range(N)]
+        clim = [[[None] * len(lons) for _ in lats] for _ in range(N)]
+        for k in range(N):
+            for i in range(len(lats)):
+                for j in range(len(lons)):
+                    vals = [mean[q][i][j] for q in range(max(0, k - 3), min(N, k + 4)) if mean[q][i][j] is not None]
+                    clim[k][i][j] = sum(vals) / len(vals) if vals else None
+        res = om_grid(OM_FC, f"daily=temperature_2m_mean&forecast_days={N}&timezone=GMT", pts)
+        fc = [[[None] * len(lons) for _ in lats] for _ in range(N)]
+        for loc, (_, _, i, j) in zip(res, pts):
+            for k, v in enumerate((loc.get("daily") or {}).get("temperature_2m_mean") or []):
+                if k < N:
+                    fc[k][i][j] = v
+        anom = [[[None if fc[k][i][j] is None or clim[k][i][j] is None else round(fc[k][i][j] - clim[k][i][j], 1)
+                  for j in range(len(lons))] for i in range(len(lats))] for k in range(N)]
+        fcr = [[[None if v is None else round(v, 1) for v in row] for row in g] for g in fc]
+        with open(anom_path, "w", encoding="utf-8") as f:
+            json.dump({"date": today_utc.isoformat(), "grid": {"latMin": EU["latMin"], "lonMin": EU["lonMin"], "step": EU["step"]},
+                       "years": YEARS, "anom": anom, "fc": fcr}, f, separators=(",", ":"))
+        print("anomalie Europe calculée")
+    except Exception as e:  # noqa: BLE001
+        print("anomalie Europe : échec", e)  # l'ancien fichier (s'il existe) est conservé
