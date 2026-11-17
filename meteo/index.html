@@ -61,7 +61,7 @@
   .tl .tx{min-width:26px;font-size:15px;font-weight:700}
   .tg{position:relative;flex:1;height:10px;border-radius:5px;background:#0b1626;border:1px solid #27405f}
   .tg i{position:absolute;top:0;bottom:0;border-radius:5px}
-  .gauge.sun{background:#1f1a08;border-color:#5c4a12;height:10px;margin-top:4px}
+  .gauge.sun{background:#1a1606;border-color:#4a3c10;height:7px;margin-top:4px}
   .sl{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-top:6px;color:#fde68a}
   .hello{background:linear-gradient(135deg,#1e3a5f,#1e293b);}
   .hello .hi{font-size:20px;font-weight:700;margin-bottom:6px}
@@ -325,7 +325,7 @@ function renderStrip(d){
 }
 function sunGauge(sunH, dayH){
   const w = dayH ? Math.min(100, sunH/dayH*100) : 0;
-  return `<div class="gauge sun"><i style="width:${w}%;background:linear-gradient(90deg,#fde047,#f59e0b)"></i></div>`;
+  return `<div class="gauge sun"><i style="width:${w}%;background:linear-gradient(90deg,#a16207,#b45309)"></i></div>`;
 }
 const hmTxt = h => h == null ? "—" : `${Math.floor(h)} h${Math.round((h%1)*60) ? " " + String(Math.round((h%1)*60)).padStart(2,"0") : ""}`;
 function renderHello(d){
