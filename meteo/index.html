@@ -163,10 +163,10 @@ const SVQ_DATA = [
   "data/svq.json"
 ];
 // Grilles : fine sur la péninsule (pluie, température), large pour la pression
-const FINE = {latMin:35, latMax:44.5, lonMin:-10, lonMax:4.5, step:0.5};
-const CLIM = {latMin:35, latMax:44,   lonMin:-10, lonMax:4,   step:1};
-const SYN  = {latMin:25, latMax:62.5, lonMin:-40, lonMax:25,  step:2.5};
-const CLIM_YEARS = [1991,1994,1997,2000,2003,2006,2009,2012,2015,2018]; // échantillon de la normale 1991-2020
+const FINE = {latMin:35, latMax:44,   lonMin:-10, lonMax:4.25, step:0.75}; // 260 points
+const CLIM = {latMin:34, latMax:44,   lonMin:-11, lonMax:5,    step:2};    // 54 points
+const SYN  = {latMin:25, latMax:62.5, lonMin:-40, lonMax:25,   step:2.5};  // 432 points
+const CLIM_YEARS = [1991,1995,1999,2003,2007,2011,2015,2019]; // échantillon de la normale 1991-2020
 
 /* =========================================================
    Utilitaires
@@ -347,6 +347,21 @@ function axes(g){
   return {lats, lons};
 }
 const grid2 = (ax, fill=null) => ax.lats.map(()=>new Array(ax.lons.length).fill(fill));
+// Open-Meteo gratuit : 600 appels/minute (1 point = 1 appel). On reste sous 500 par minute glissante.
+const spent = [];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function pause(sec, label){
+  for (let s=sec; s>0; s--){ $("mapStatus").textContent = `${label} pause (limite du service gratuit)… ${s} s`; await sleep(1000); }
+}
+async function budget(n, label){
+  for (;;){
+    const now = Date.now();
+    while (spent.length && now - spent[0][0] > 61000) spent.shift();
+    const used = spent.reduce((s,x) => s + x[1], 0);
+    if (used + n <= 500){ spent.push([now, n]); return; }
+    await pause(Math.ceil((61000 - (now - spent[0][0]))/1000), label);
+  }
+}
 async function fetchMulti(g, params, onLoc, base=FC, label=""){
   const ax = axes(g), pts = [];
   ax.lats.forEach((la,i)=>ax.lons.forEach((lo,j)=>pts.push([la,lo,i,j])));
@@ -354,7 +369,14 @@ async function fetchMulti(g, params, onLoc, base=FC, label=""){
   for (let k=0; k<pts.length; k+=B){
     const batch = pts.slice(k, k+B);
     const url = `${base}?latitude=${batch.map(p=>p[0]).join(",")}&longitude=${batch.map(p=>p[1]).join(",")}&${params}`;
-    let data = await getJSON(url);
+    await budget(batch.length, label);
+    let data;
+    try { data = await getJSON(url); }
+    catch(e){
+      if (!/429/.test(e.message)) throw e;
+      await pause(60, label);                 // limite par minute atteinte : on attend puis on réessaie
+      data = await getJSON(url);
+    }
     if (!Array.isArray(data)) data = [data];
     data.forEach((loc,n)=>onLoc(loc, batch[n][2], batch[n][3]));
     $("mapStatus").textContent = `${label} ${Math.round(Math.min(1,(k+B)/pts.length)*100)} %`;
@@ -419,17 +441,17 @@ async function loadFine(){
   if (fine) return;
   fine = await cached("gridFine", todayISO(), 3, async () => {
     const ax = axes(FINE);
-    const rain = Array.from({length:14}, () => grid2(ax)), tmean = Array.from({length:14}, () => grid2(ax));
-    await fetchMulti(FINE, `daily=precipitation_sum,temperature_2m_mean&forecast_days=14&timezone=${TZ}`, (loc,i,j) => {
-      for (let d=0; d<14; d++){ rain[d][i][j] = loc.daily.precipitation_sum[d]; tmean[d][i][j] = loc.daily.temperature_2m_mean[d]; }
+    const rain = Array.from({length:14}, () => grid2(ax));
+    await fetchMulti(FINE, `daily=precipitation_sum&forecast_days=14&timezone=${TZ}`, (loc,i,j) => {
+      for (let d=0; d<14; d++) rain[d][i][j] = loc.daily.precipitation_sum[d];
     }, FC, "Prévisions péninsule…");
-    return {rain, tmean, start: todayISO()};
+    return {rain, start: todayISO()};
   });
 }
 async function loadClimo(){
   if (climo) return;
-  const ed = epochDay(todayISO()), ws = ed - (((ed % 6) + 6) % 6), wsISO = isoFromEpoch(ws), N = 20;
-  climo = await cached("climo", wsISO, 24*7, async () => {
+  const wsISO = todayISO(), N = 14;
+  climo = await cached("climo2", wsISO, 24, async () => {
     const ax = axes(CLIM);
     const sum = Array.from({length:N}, () => grid2(ax, 0)), cnt = Array.from({length:N}, () => grid2(ax, 0));
     for (const Y of CLIM_YEARS){
@@ -447,7 +469,14 @@ async function loadClimo(){
       for (let q=Math.max(0,k-3); q<=Math.min(N-1,k+3); q++) if (mean[q][i][j] != null){ s += mean[q][i][j]; c++; }
       return c ? +(s/c).toFixed(2) : null;
     })));
-    return {ws, days};
+    // Prévision aux mêmes points que la normale (même relief) → écart cohérent
+    const fc = Array.from({length:N}, () => grid2(ax));
+    await fetchMulti(CLIM, `daily=temperature_2m_mean&forecast_days=14&timezone=${TZ}`, (loc,i,j) => {
+      for (let d=0; d<N; d++) fc[d][i][j] = loc.daily.temperature_2m_mean[d];
+    }, FC, "Prévision des températures…");
+    const anom = fc.map((g,d) => g.map((r,i) => r.map((v,j) =>
+      v == null || days[d][i][j] == null ? null : +(v - days[d][i][j]).toFixed(2))));
+    return {start: wsISO, fc, anom};
   });
 }
 async function loadSyn(){
@@ -501,14 +530,13 @@ function renderRain(){
   $("stepLbl").textContent = fineDayLabel(step);
   $("mapStatus").textContent = `Pluie du jour · Séville : ${fr(bil(FINE, f, SVQ.lat, SVQ.lon))} mm`;
 }
-function climoAt(d){ return climo.days[epochDay(fine.start) + d - climo.ws]; }
 function renderAnom(){
-  const f = fine.tmean[step], c = climoAt(step);
-  if (!c){ $("mapStatus").textContent = "Normales indisponibles pour ce jour"; return; }
-  const val = (la,lo) => { const a = bil(FINE, f, la, lo), b = bil(CLIM, c, la, lo); return a == null || b == null ? null : a - b; };
-  setOverlay(renderField(FINE, f, val, ANOM_STOPS), 0.65);
-  $("stepLbl").textContent = fineDayLabel(step);
-  const v = val(SVQ.lat, SVQ.lon), t = bil(FINE, f, SVQ.lat, SVQ.lon);
+  const a = climo.anom[step], f = climo.fc[step];
+  const val = (la,lo) => bic(CLIM, a, la, lo);
+  setOverlay(renderField(CLIM, a, val, ANOM_STOPS), 0.65);
+  const iso = isoFromEpoch(epochDay(climo.start) + step);
+  $("stepLbl").textContent = new Date(iso + "T12:00").toLocaleDateString("fr-FR",{weekday:"short", day:"numeric", month:"short"}) + (step >= 7 ? " ·tend." : "");
+  const v = val(SVQ.lat, SVQ.lon), t = bic(CLIM, f, SVQ.lat, SVQ.lon);
   $("mapStatus").textContent = `Écart de la température moyenne du jour à la normale 1991-2020 · Séville : ${v>0?"+":""}${fr(v)} °C (moy. ${fr(t)} °C)`;
 }
 function contourSegs(G, lats, lons, lev){
@@ -584,7 +612,7 @@ const MODES = {
   radar: {load: loadRadar, render: renderRadar, steps: () => radar ? radar.frames.length : 1, view:"ib", speed:600,
           legend:["Faible","linear-gradient(90deg,#9bd2ff,#2e7bff,#1fbf5a,#f5d32a,#f5761e,#d81e3c,#b228c8)","Intense"]},
   rain:  {load: loadFine, render: renderRain, steps: () => 14, view:"ib", speed:900, stops:RAIN_STOPS.slice(2), legend:["1 mm",null,"80 mm / jour"]},
-  anom:  {load: async () => { await loadFine(); await loadClimo(); }, render: renderAnom, steps: () => 14, view:"ib", speed:900, stops:ANOM_STOPS, legend:["-8 °C",null,"+8 °C"]},
+  anom:  {load: loadClimo, render: renderAnom, steps: () => 14, view:"ib", speed:900, stops:ANOM_STOPS, legend:["-8 °C",null,"+8 °C"]},
   pres:  {load: loadSyn, render: renderPres, steps: () => syn ? syn.times.length : 56, view:"syn", speed:500, stops:PRES_STOPS, legend:["960 hPa",null,"1045 hPa"]},
 };
 function legend(m){
