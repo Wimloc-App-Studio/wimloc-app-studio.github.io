@@ -433,7 +433,7 @@ def ww_bits(code):
 
 
 def metar_bits(rem):
-    m = re.search(r"METAR\s+LEZL\s+(.*)", rem or "")
+    m = re.search(r"(?:METAR|SPECI)?\s*(?:COR\s+)?LEZL\s+\d{6}Z\s+(.*)", rem or "")
     if not m:
         return 0
     b = 0
@@ -515,17 +515,53 @@ def isd_year(y):
     return obs
 
 
+def _median(a):
+    a = sorted(a)
+    return a[len(a) // 2] if a else None
+
+
+def _rmax(vals, jump):
+    """Maximum robuste : ignore un pic isolé (écart > jump avec la 2e valeur)."""
+    s_ = sorted(vals)
+    if not s_:
+        return None
+    return s_[-2] if len(s_) >= 3 and s_[-1] - s_[-2] > jump else s_[-1]
+
+
+def _rmin(vals, jump):
+    s_ = sorted(vals)
+    if not s_:
+        return None
+    return s_[1] if len(s_) >= 3 and s_[1] - s_[0] > jump else s_[0]
+
+
 def isd_days(obs):
+    """Agrège les observations horaires par jour (UTC), après contrôle qualité."""
     import bisect
-    slp_t = [o[0].timestamp() for o in obs if o[6] is not None]
-    slp_v = [o[6] for o in obs if o[6] is not None]
     by = {}
     for o in obs:
-        by.setdefault(o[0].date().isoformat(), []).append(o)
+        by.setdefault(o[0].date().isoformat(), []).append(list(o))
+    for L in by.values():
+        meds = _median([o[6] for o in L if o[6] is not None and 950 <= o[6] <= 1050])
+        for o in L:
+            if o[1] is not None and not -10 <= o[1] <= 50:
+                o[1] = None
+            if o[2] is not None and (not -30 <= o[2] <= 32 or (o[1] is not None and o[2] > o[1] + 0.5)):
+                o[2] = None
+            if o[1] is None or o[2] is None:
+                o[3] = None
+            if o[4] is not None and o[4] > 130:
+                o[4] = None
+            if o[5] is not None and (o[5] > 160 or (o[4] is not None and o[5] < o[4])):
+                o[5] = None
+            if o[6] is not None and (meds is None or abs(o[6] - meds) > 6 or not 950 <= o[6] <= 1050):
+                o[6] = None
+    allo = sorted((o for L in by.values() for o in L), key=lambda o: o[0])
+    slp_t = [o[0].timestamp() for o in allo if o[6] is not None]
+    slp_v = [o[6] for o in allo if o[6] is not None]
     out = {}
+    r1 = lambda v: None if v is None else round(v, 1)  # noqa: E731
     for day, L in by.items():
-        r1 = lambda v: None if v is None else round(v, 1)  # noqa: E731
-        ts = [o[1] for o in L if o[1] is not None]
         rhs = [o[3] for o in L if o[3] is not None]
         tds = [o[2] for o in L if o[2] is not None]
         wss = [o[4] for o in L if o[4] is not None]
@@ -541,17 +577,32 @@ def isd_days(obs):
             for kk in (k - 1, k):
                 if 0 <= kk < len(slp_t) and abs(slp_t[kk] - target) <= 5400:
                     dd = slp_v[kk] - o[6]
-                    drop = dd if drop is None else max(drop, dd)
+                    if dd <= 30:
+                        drop = dd if drop is None else max(drop, dd)
         ph = 0
         for o in L:
             ph |= o[7]
-        out[day] = [r1(max(wss)) if wss else None, r1(max(wgs)) if wgs else None,
-                    round(min(rhs)) if rhs else None, round(sum(rhs) / len(rhs)) if rhs else None,
-                    r1(max(tds)) if tds else None,
+        out[day] = [r1(_rmax(wss, 20)), r1(_rmax(wgs, 30)),
+                    None if not rhs else round(_rmin(rhs, 15)), round(sum(rhs) / len(rhs)) if rhs else None,
+                    r1(_rmax(tds, 4)),
                     r1(min(slps)) if slps else None, r1(max(slps)) if slps else None,
                     r1(sum(slps) / len(slps)) if slps else None, r1(drop),
-                    r1(max(his)) if his else None, len(L), ph]
+                    r1(_rmax(his, 4)), len(L), ph]
     return out
+
+
+def metar_obs(m):
+    """Observation METAR décodée → même forme qu'une ligne ISD."""
+    t, td = m.get("temp"), m.get("dewp")
+    rh = None
+    if t is not None and td is not None and td <= t + 0.5:
+        rh = min(100.0, 100 * pow(2.718281828, 17.625 * td / (243.04 + td)) / pow(2.718281828, 17.625 * t / (243.04 + t)))
+    ws = None if m.get("wspd") is None else m["wspd"] * 1.852
+    wg = None if not m.get("wgst") else m["wgst"] * 1.852
+    raw = (m.get("rawOb") or "")
+    ph = metar_bits("METAR " + raw if not raw.startswith("METAR") else raw)
+    when = dt.datetime.fromtimestamp(m["obsTime"], dt.timezone.utc)
+    return (when, t, td, rh, ws, wg, m.get("altim"), ph)
 
 
 isd_path = os.path.join(dest, "isd_daily.json")
@@ -563,6 +614,8 @@ except Exception:  # noqa: BLE001
 isd_state.setdefault("fetched", {})
 isd_state.setdefault("days", {})
 isd_state["fields"] = ISD_FIELDS
+if isd_state.get("version") != 2:
+    isd_state = {"version": 2, "fetched": {}, "days": {}, "src": {}, "fields": ISD_FIELDS}
 for yk in list(isd_state["fetched"]):
     if not any(k.startswith(yk + "-") for k in isd_state["days"]):
         del isd_state["fetched"][yk]
@@ -583,9 +636,9 @@ for y in range(1980, now_u.year + 1):
         if not days_y:
             print("ISD", y, "aucun jour lu, nouvel essai plus tard")
             continue
-        for k in [k for k in isd_state["days"] if k.startswith(f"{y}-")]:
-            del isd_state["days"][k]
         isd_state["days"].update(days_y)
+        for k in days_y:
+            isd_state.setdefault("src", {}).pop(k, None)
         isd_state["fetched"][str(y)] = now_u.isoformat()
         print("ISD", y, len(days_y), "jours")
     except Exception as e:  # noqa: BLE001
@@ -594,6 +647,45 @@ for y in range(1980, now_u.year + 1):
             isd_state["fetched"][str(y)] = now_u.isoformat()  # pas de fichier cette année-là
     with open(isd_path, "w", encoding="utf-8") as f:
         json.dump(isd_state, f, separators=(",", ":"))
+
+# Jours pas encore publiés par la NOAA : METAR archivés (Ogimet), par tranches de 10 jours
+isd_state.setdefault("src", {})
+try:
+    ystd = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).date()
+    known = set(isd_state["days"])
+    last_isd = max((k for k in known if isd_state["src"].get(k) != "metar"), default="1980-01-01")
+    d0 = dt.date.fromisoformat(last_isd) + dt.timedelta(days=1)
+    missing = []
+    d_ = d0
+    while d_ <= ystd:
+        k = d_.isoformat()
+        if k not in known or (isd_state["src"].get(k) == "metar" and d_ >= ystd - dt.timedelta(days=2)):
+            missing.append(d_)
+        d_ += dt.timedelta(days=1)
+    done_chunks = 0
+    while missing and done_chunks < 8 and time.time() - SCRIPT_T0 < 30 * 60:
+        a_ = missing[0]
+        b_ = min(a_ + dt.timedelta(days=9), ystd)
+        txt = get_retry(f"https://www.ogimet.com/cgi-bin/getmetar?icao={ICAO}&begin={a_:%Y%m%d}0000&end={b_:%Y%m%d}2359")
+        obs = []
+        for line in txt.splitlines():
+            p_ = line.split(",", 6)
+            if len(p_) == 7 and p_[0] == ICAO:
+                when = dt.datetime(int(p_[1]), int(p_[2]), int(p_[3]), int(p_[4]), int(p_[5]), tzinfo=dt.timezone.utc)
+                obs.append(metar_obs(parse_metar(p_[6].strip().rstrip("="), when)))
+        got = isd_days(obs)
+        for k, v in got.items():
+            if a_.isoformat() <= k <= b_.isoformat() and (k not in isd_state["days"] or isd_state["src"].get(k) == "metar"):
+                isd_state["days"][k] = v
+                isd_state["src"][k] = "metar"
+        print("METAR (Ogimet)", a_, "→", b_, len(got), "jours")
+        missing = [x for x in missing if x > b_]
+        done_chunks += 1
+        time.sleep(20)
+    with open(isd_path, "w", encoding="utf-8") as f:
+        json.dump(isd_state, f, separators=(",", ":"))
+except Exception as e:  # noqa: BLE001
+    print("complément METAR : erreur", e)
 
 # ---------- Anomalie de température Europe (une fois par jour) ----------
 OM_FC = "https://api.open-meteo.com/v1/forecast"
