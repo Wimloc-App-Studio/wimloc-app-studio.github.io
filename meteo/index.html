@@ -41,16 +41,24 @@
   .hr .i{font-size:22px;line-height:1}
   .hr .rd{display:block;margin:-2px auto 0;height:9px}
   .fcv{color:#c084fc;font-size:12px}
+  .rk1{color:#facc15}.rk2{color:#e2e8f0}.rk3{color:#f59e0b}.rk4{color:#7dd3fc}
   h3.lvl{font-size:15px;margin:14px 0 4px;padding-top:8px;border-top:1px solid var(--line)}
   h3.lvl:first-of-type{border-top:0;margin-top:4px;padding-top:0}
   h3.lvl .nb{background:#b45309;color:#fff;border-radius:9px;padding:0 7px;font-size:12px;margin-left:4px}
   .hr .vb{height:34px;display:flex;align-items:flex-end;justify-content:center;margin:3px 0}
   .hr .vb i{width:14px;background:#3b82f6;border-radius:3px 3px 0 0}
-  .hr.newday{border-left:3px solid var(--acc)}
+  .hr{position:relative}
+  /* séparation des jours : demi-rectangle droit de la dernière case du jour, demi-rectangle gauche de la première du lendemain */
+  .hr.endday::after{content:"";position:absolute;top:-1px;bottom:-1px;left:50%;right:-1px;border:2px solid #991b1b;border-left:0;border-radius:0 10px 10px 0;pointer-events:none}
+  .hr.newday::before{content:"";position:absolute;top:-1px;bottom:-1px;right:50%;left:-1px;border:2px solid #991b1b;border-right:0;border-radius:10px 0 0 10px;pointer-events:none}
+  .strip{scrollbar-color:#1e3a8a #374151;scrollbar-width:thin}
+  .strip::-webkit-scrollbar{height:8px}
+  .strip::-webkit-scrollbar-track{background:#374151;border-radius:4px}
+  .strip::-webkit-scrollbar-thumb{background:#1e3a8a;border-radius:4px}
 
   /* 14 jours */
   .scale{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin:0 0 4px}
-  .row{display:grid;grid-template-columns:92px 1fr 64px;gap:8px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--line)}
+  .row{display:grid;grid-template-columns:92px 1fr 96px;gap:8px;align-items:center;padding:5px 2px;border-bottom:1px solid var(--line)}
   .row:last-child{border-bottom:0}
   .row.low{opacity:.75}
   .row .dt b{display:block;font-size:14px}
@@ -119,7 +127,7 @@
 </head>
 <body>
 <header>
-  <h1>🌦️ Météo Séville</h1>
+  <h1>Météo Séville</h1>
   <nav>
     <a href="#prevision" id="b-prevision">Prévisions</a>
     <a href="#cartes" id="b-cartes">Cartes</a>
@@ -337,8 +345,9 @@ function renderStrip(d){
     let rain = 0; for (let m=i; m<i+3 && m<h.time.length; m++) rain += h.precipitation[m] || 0;
     const hour = +h.time[i].slice(11,13);
     const newDay = k > 0 && hour < 3;
+    const endDay = hour >= 21 && k < 15 && i + 3 < h.time.length;
     const lbl = newDay ? new Date(h.time[i]).toLocaleDateString("fr-FR",{weekday:"short"}) + " " + hour + "h" : hour + "h";
-    html += `<div class="hr${newDay?" newday":""}">
+    html += `<div class="hr${newDay?" newday":""}${endDay?" endday":""}">
       <div><b>${lbl}</b></div>
       <div class="i">${wIcon(h.weather_code[i], h.is_day[i])}</div>${rainDrops(rain)}
       <div><b>${r0(h.temperature_2m[i])}°</b></div>
@@ -887,6 +896,25 @@ function rainCard(d, m){
   h += `<div class="mut" style="margin-top:6px">Quantités mesurées par la station (messages SYNOP), par tranches de 3 heures. Jauge pleine = 5 mm.</div></div>`;
   return h;
 }
+// Aujourd'hui (jour calendaire, heure de Séville) : pluie, mini et maxi mesurés jusqu'à maintenant
+function todayBox(d, met){
+  const key = todayISO(), loc = sec => new Date(sec*1000).toLocaleDateString("sv-SE",{timeZone:"Europe/Madrid"});
+  const hm = sec => new Date(sec*1000).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Madrid"});
+  const T = met.filter(x => x.temp != null && loc(obsTime(x)/1000) === key);
+  const tn = T.length ? Math.min(...T.map(x => x.temp)) : null, tx = T.length ? Math.max(...T.map(x => x.temp)) : null;
+  const known = rainBlocks((d.synop || []).filter(x => x.rr)), B = 3*3600;
+  const blk = [...known.entries()].filter(([e]) => loc(e - B) === key).sort((a,b) => a[0]-b[0]);
+  const rain = blk.reduce((s,[,v]) => s + v, 0);
+  const rainTxt = blk.length ? `${fr(rain)} mm` : "—";
+  const rainSub = blk.length ? `de ${hm(blk[0][0]-B)} à ${hm(blk[blk.length-1][0])}` : "pas encore de relevé";
+  return `<h2 style="margin:14px 0 8px">Aujourd'hui, mesuré jusqu'à maintenant</h2>
+    <div class="kv">
+      <div><small>Pluie (${rainSub})</small><b style="color:#7dd3fc">${rainTxt}</b></div>
+      <div><small>Mini${T.length ? " · " + T.length + " relevés" : ""}</small><b class="tn">${tn != null ? fr(tn,0) + " °C" : "—"}</b></div>
+      <div><small>Maxi</small><b class="tx">${tx != null ? fr(tx,0) + " °C" : "—"}</b></div>
+    </div>
+    <div class="mut" style="margin-top:4px">Mini et maxi d'après les relevés de l'aéroport (toutes les 30 min) depuis minuit ; pluie d'après les cumuls de 3 h de la station.</div>`;
+}
 async function initObs(){
   const el = $("obsBody");
   const d = await svqData();
@@ -912,9 +940,9 @@ async function initObs(){
         <div><small>Visibilité</small><b>${visib(m.visib)}</b></div>
         <div><small>Nuages</small><b style="font-size:13px">${decodeClouds(m) || "—"}</b></div>
       </div>
+      ${todayBox(d, met)}
       <div class="raw">${m.rawOb || ""}</div>
     </div>`;
-    html += rainCard(d, m);
     html += `<div class="card"><h2>Relevés des dernières 24 h</h2><div class="tw"><table>
       <tr><th>Heure</th><th>T°</th><th>Rosée</th><th>Hum.</th><th>Vent</th><th>Pression</th><th>Visi.</th><th>Temps</th></tr>`;
     const cut = Date.now() - 24*3600e3;
@@ -925,10 +953,11 @@ async function initObs(){
         <td style="text-align:left;white-space:normal;min-width:110px">${decodeWx(x.wxString) || decodeClouds(x)}</td></tr>`;
     });
     html += `</table></div></div>`;
+    html += rainCard(d, m);
   }
-  const days = (d.daily || []).filter(x => x.tmax != null || x.prcp != null).slice(-15).reverse();
+  const days = (d.daily || []).filter(x => x.tmax != null || x.prcp != null).slice(-31).reverse();
   if (days.length){
-    html += `<div class="card"><h2>Bilan des derniers jours</h2><div class="tw"><table>
+    html += `<div class="card"><h2>Bilan des 31 derniers jours</h2><div class="tw"><table>
       <tr><th>Jour</th><th>Mini</th><th>Maxi</th><th>Moy.</th><th style="min-width:120px">Pluie</th><th>Vent moy.</th><th>Rafale</th><th>Soleil</th></tr>`;
     days.forEach(x => {
       const tm = x.tmin != null && x.tmax != null ? (x.tmin + x.tmax)/2 : x.tavg;
@@ -944,7 +973,7 @@ async function initObs(){
 }
 
 /* =========================================================
-   4. CLIMAT (mois, années, normales 1991-2020)
+   4. CLIMAT (mois, années, normales 1980-2025)
    ========================================================= */
 function aggregateDaily(daily){
   const g = {};
@@ -1005,11 +1034,12 @@ async function initClimat(){
   // Pas de données avant 1980
   Object.keys(months).forEach(k => { if (k < "1980") delete months[k]; });
 
-  // Normales 1991-2020
+  // Normales sur toute la période disponible : 1980-2025
+  const NORM_A = 1980, NORM_B = 2025;
   const N = [];
   for (let m=1; m<=12; m++){
     const acc = {tmin:[], tmax:[], tm:[], prcp:[], tsun:[]};
-    for (let y=1991; y<=2020; y++){
+    for (let y=NORM_A; y<=NORM_B; y++){
       const o = months[`${y}-${String(m).padStart(2,"0")}`];
       if (!o || o.partial) continue;
       if (o.tmin != null) acc.tmin.push(o.tmin);
@@ -1041,17 +1071,16 @@ async function initClimat(){
 
   el.innerHTML = `
     <div class="card">
-      <h2>Climat de Séville Aéroport</h2>
-      <div class="mut" style="margin-bottom:8px">${src}</div>
-      <label>Année : <select id="ySel">${years.map(y=>`<option>${y}</option>`).join("")}</select></label>
-      <div id="ySum" class="kv" style="margin-top:10px"></div>
-    </div>
-    <div class="card"><h2 id="mTitle"></h2><div class="tw" id="mTable"></div>
-      <div class="mut" style="margin-top:6px">Écart = différence avec la normale 1991-2020 du mois. * = mois incomplet. « manquant » = pas de mesure disponible. « ≈ » = quelques jours sans relevé ce mois-là (fréquent avant 1991), total un peu sous-estimé.</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+        <h2 id="mTitle" style="margin:0"></h2><select id="ySel">${years.map(y=>`<option>${y}</option>`).join("")}</select>
+      </div>
+      <div class="tw" id="mTable"></div>
+      <div class="mut" style="margin-top:6px">Écart = différence avec la normale ${NORM_A}-${NORM_B} du mois. * = mois incomplet. « manquant » = pas de mesure disponible. « ≈ » = quelques jours sans relevé ce mois-là (fréquent avant 1991), total un peu sous-estimé.</div></div>
     <div class="card"><h2>Année par année</h2>
       <div class="mut">Écart de la température moyenne annuelle à la normale (bleu = plus frais, rouge = plus chaud).</div>
       <svg id="stripes"></svg><div class="tw" id="yTable" style="margin-top:8px"></div></div>
-    <div class="card"><h2>Normales 1991-2020</h2><div class="tw" id="nTable"></div></div>`;
+    <div class="card"><h2>Normales ${NORM_A}-${NORM_B}</h2><div class="tw" id="nTable"></div>
+      <div class="mut" style="margin-top:6px">${src}</div></div>`;
 
   // Tableau des normales
   let nt = `<table><tr><th>Mois</th><th>Mini</th><th>Maxi</th><th>Moy.</th><th>Pluie</th><th>Soleil</th></tr>`;
@@ -1094,7 +1123,7 @@ async function initClimat(){
         <td>${pct != null ? fr(pct,0)+" %" : "—"}</td><td>${o.tsun != null ? fr(o.tsun/60,0)+" h" : "—"}</td></tr>`;
     }
     $("mTable").innerHTML = h + `</table><div class="mut" style="margin-top:4px">Jauge mensuelle : 0 à 150 mm.</div>`;
-    const s = yearStats.find(x => x.y === y);
+    return;
     $("ySum").innerHTML = `
       <div><small>T° moyenne${s.full?"":" (partielle)"}</small><b>${s.tm != null ? fr(s.tm)+" °C" : "incomplet"}</b></div>
       <div><small>Écart à la normale</small><b>${s.full && normYear != null ? (s.tm-normYear>0?"+":"") + fr(s.tm-normYear) + " °C" : "—"}</b></div>
@@ -1214,8 +1243,9 @@ function fmtV(v, u, sign){
 }
 function rankTxt(r, dir, words){
   const w = words || (dir === "hi" ? "valeur la plus haute" : "valeur la plus basse");
-  if (r.rank === 1 && !r.ties) return `<b>RECORD</b> : ${w}`;
-  return `<b>${r.rank === 1 ? (words ? "1er" : "1re") : r.rank + "e"}${r.ties ? " ex æquo" : ""}</b> ${w}`;
+  const cls = "rk" + Math.min(r.rank, 4);
+  if (r.rank === 1 && !r.ties) return `<b class="${cls}">RECORD</b> : ${w}`;
+  return `<b class="${cls}">${r.rank === 1 ? (words ? "1er" : "1re") : r.rank + "e"}${r.ties ? " ex æquo" : ""}</b> ${w}`;
 }
 function rankOf(v, ref, dir){
   let better=0, eq=0, best=null;
@@ -1355,7 +1385,7 @@ async function computeRecords(){
     const m = +iso.slice(5,7);
     DP.forEach(P => { const x = dayVal(P, d); if (x == null) return; ((refD[m] ||= {})[P.k] ||= []).push({v:x, date:iso}); });
   });
-  for (let e = winFrom; e < eT; e++){
+  for (let e = eT - 3; e < eT; e++){   // records du jour : 3 derniers jours mesurés
     const iso = isoFromEpoch(e), d = days.get(iso);
     if (!d || d.src !== "obs") continue;
     const m = +iso.slice(5,7);
@@ -1590,7 +1620,7 @@ async function initRecords(){
         const A = R.alerts.filter(a => a.lvl === k);
         if (!A.length) return;
         h += `<h3 class="lvl">${t} <small>(${sub})</small> <span class="nb">${A.length}</span></h3>`;
-        h += A.map(a => `<div class="alert${a.rank===1?" rec":""}"><span class="ai">${a.rank===1?"🏆":CAT[a.c][1]}</span><div>${a.html}</div></div>`).join("");
+        h += A.map(a => `<div class="alert${a.rank===1?" rec":""}"><div>${a.html}</div></div>`).join("");
       });
     }
     h += `<div class="mut" style="margin-top:8px">Uniquement des valeurs mesurées (jusqu'au ${frDayMonth(R.lastObsISO)}). Alerte si une valeur entre dans le top ${TOP} depuis ${REC_START} : jours et mois comparés au même mois de l'année, séries et dates comparées à toutes les années.</div></div>`;
