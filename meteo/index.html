@@ -1215,15 +1215,6 @@ const MP = [
   {k:"du",      c:"W", src:"I", kind:"sum",  u:"j",  lbl:"Jours de brume sèche ou de poussière"},
   {k:"tsun",    c:"S", src:"S", kind:"sum",  u:"h",  lbl:"Ensoleillement"},
 ];
-// --- Séries en cours (à cheval sur les mois) ---
-const RUNS = [
-  {k:"dry",  c:"P", lbl:"Jours sans pluie consécutifs",               f:d => d.p  == null ? null : d.p < 1},
-  {k:"rain", c:"P", lbl:"Jours de pluie consécutifs",                 f:d => d.p  == null ? null : d.p >= 1},
-  {k:"h35",  c:"T", lbl:"Jours consécutifs à 35 °C ou plus",          f:d => d.tx == null ? null : d.tx >= 35},
-  {k:"h40",  c:"T", lbl:"Jours consécutifs à 40 °C ou plus",          f:d => d.tx == null ? null : d.tx >= 40},
-  {k:"trop", c:"T", lbl:"Nuits tropicales consécutives (Tmin ≥ 20 °C)", f:d => d.tn == null ? null : d.tn >= 20},
-  {k:"gel",  c:"T", lbl:"Jours de gel consécutifs",                   f:d => d.tn == null ? null : d.tn <= 0},
-];
 // --- Dates précoces / tardives ---
 const DATES = [
   {k:"f30", lbl:"Premier jour à 30 °C de l'année", th:30, type:"first"},
@@ -1523,42 +1514,6 @@ async function computeRecords(){
     addSection(t, toDateRows(`${cy}-01-01`, lastObsISO, t, ph, TP, true), toDateRows(`${cy}-01-01`, endY, t, ph, TP, false),
       `Comparé aux autres années sur la même période (mesures jusqu'au ${frDayMonth(lastObsISO)} ; en violet, jusqu'au ${frDayMonth(endY)} avec la prévision).`);
   }
-  // ---------- 3. Séries en cours ----------
-  const runRows = [];
-  RUNS.forEach(R => {
-    const yearMax = {};
-    let len = 0, start = null, curF = null, curO = null;
-    // a) toutes les séries passées mesurées (référence) et la série en cours avec prévision
-    keys.forEach((iso, i) => {
-      const d = days.get(iso), ok = R.f(d);
-      if (ok){ if (!len) start = iso; len++; }
-      if (!ok || i === keys.length - 1){
-        const end = ok ? iso : keys[i-1];
-        if (len){
-          if (end >= today && start <= today) curF = {len, start, end};
-          else if (end < isoFromEpoch(winFrom) && days.get(end).src === "obs"){
-            const y = end.slice(0,4);
-            if (!yearMax[y] || len > yearMax[y].v) yearMax[y] = {v: len, date: end};
-          }
-        }
-        len = 0;
-      }
-    });
-    // b) la série en cours sur les seuls jours mesurés (se termine au dernier jour mesuré)
-    let k = 0; const okObs = iso => isObs(iso) && R.f(days.get(iso));
-    for (let e = epochDay(lastObsISO); okObs(isoFromEpoch(e)); e--) k++;
-    if (k >= 2) curO = {len:k, start: isoFromEpoch(epochDay(lastObsISO) - k + 1), end: lastObsISO};
-    const ref = Object.entries(yearMax).filter(([y]) => +y < cy).map(([,x]) => x);
-    const rO = curO && ref.length >= 10 ? rankOf(curO.len, ref, "hi") : null;
-    const rF = curF && curF.len >= 2 && ref.length >= 10 ? rankOf(curF.len, ref, "hi") : null;
-    runRows.push({R, curO, rO, curF: curF && curF.len >= 2 ? curF : null, rF});
-    if (rO && rO.pess <= TOP) alerts.push({lvl:"annee", c:R.c, rank:rO.rank, sort:rO.rank,
-      html:`<b>Série en cours</b> <small>(depuis le ${frDayMonth(curO.start)}, mesuré jusqu'au ${frDayMonth(curO.end)})</small> · ${R.lbl} : <b>${curO.len} j</b>
-        → ${rankTxt(rO, "hi", "série la plus longue")} depuis ${REC_START}
-        <small>(${rO.rank===1?"ancien record":"record"} : ${rO.best.v} j, jusqu'au ${frDate(rO.best.date)})</small>`});
-  });
-  sections.push({type:"runs", rows: runRows});
-
   // ---------- 4. Dates précoces et tardives ----------
   const doy = iso => epochDay(iso) - epochDay(iso.slice(0,4) + "-01-01");
   const fromJul = (iso, s) => epochDay(iso) - epochDay(`${s}-07-01`);
@@ -1617,7 +1572,7 @@ async function initRecords(){
     let h = `<div class="card"><h2>🏆 Alertes records</h2>`;
     if (!R.alerts.length) h += `<div class="mut">Aucun paramètre proche d'un record pour le moment.</div>`;
     else {
-      const LV = [["jour","Records du jour","jour le plus…"],["mois","Records mensuels","mois le plus…"],["annee","Records annuels","année la plus…, séries et dates"]];
+      const LV = [["jour","Records du jour","jour le plus…"],["mois","Records mensuels","mois le plus…"],["annee","Records annuels","année la plus…, dates"]];
       LV.forEach(([k, t, sub]) => {
         const A = R.alerts.filter(a => a.lvl === k);
         if (!A.length) return;
@@ -1625,9 +1580,10 @@ async function initRecords(){
         h += A.map(a => `<div class="alert${a.rank===1?" rec":""}"><div>${a.html}</div></div>`).join("");
       });
     }
-    h += `<div class="mut" style="margin-top:8px">Uniquement des valeurs mesurées (jusqu'au ${frDayMonth(R.lastObsISO)}). Alerte si une valeur entre dans le top ${TOP} depuis ${REC_START} : jours et mois comparés au même mois de l'année, séries et dates comparées à toutes les années.</div></div>`;
+    h += `<div class="mut" style="margin-top:8px">Uniquement des valeurs mesurées (jusqu'au ${frDayMonth(R.lastObsISO)}). Alerte si une valeur entre dans le top ${TOP} depuis ${REC_START} : jours et mois comparés au même mois de l'année, dates comparées à toutes les années.</div></div>`;
     h += `<div class="mut" style="margin:0 2px 10px">Dans les tableaux : valeurs mesurées en blanc, <span class="fcv">en violet avec la prévision</span>.</div>`;
-    const hl = rk => rk && rk.pess <= TOP ? ` style="color:#fbbf24;font-weight:700"` : "";
+    // même code couleur que les alertes : or, vert, bronze, bleu clair (top 5)
+    const hl = rk => rk && rk.pess <= TOP ? ` class="rk${Math.min(rk.rank, 4)}" style="font-weight:700"` : "";
     const rk = (x, dir) => x && x.dirs.includes(dir) ? `${ordinal(x[dir].rank)}/${x.n+1}` : "—";
     const fcLine = txt => txt ? `<br><span class="fcv">${txt}</span>` : "";
     R.sections.forEach(S => {
@@ -1646,18 +1602,6 @@ async function initRecords(){
             <td>${fmtV(base.hi.best.v,P.u)} <small>${base.hi.best.date}</small></td><td>${fmtV(base.lo.best.v,P.u)} <small>${base.lo.best.date}</small></td></tr>`;
         }, 6);
         h += `</table></div>${S.note ? `<div class="mut" style="margin-top:6px">${S.note}</div>` : ""}</div>`;
-      } else if (S.type === "runs"){
-        h += `<div class="card"><h2>Séries en cours</h2><div class="tw"><table>
-          <tr><th>Série</th><th>En cours</th><th>Rang</th><th>Record</th></tr>`;
-        h += catRows(S.rows, r => {
-          const diff = r.curF && (!r.curO || r.curF.len !== r.curO.len);
-          const best = (r.rO || r.rF);
-          return `<tr><td style="white-space:normal;min-width:150px">${r.R.lbl}</td>
-            <td>${r.curO ? `<b>${r.curO.len} j</b> <small>depuis le ${frDayMonth(r.curO.start)}</small>` : "<small>aucune</small>"}${fcLine(diff ? `${r.curF.len} j jusqu'au ${frDayMonth(r.curF.end)}` : "")}</td>
-            <td${hl(r.rO)}>${r.rO ? ordinal(r.rO.rank) + "/" + (r.rO.n+1) : "—"}${fcLine(diff && r.rF ? ordinal(r.rF.rank) + "/" + (r.rF.n+1) : "")}</td>
-            <td>${best ? `${best.best.v} j <small>${best.best.date.slice(0,4)}</small>` : "—"}</td></tr>`;
-        }, 4);
-        h += `</table></div><div class="mut" style="margin-top:6px">Comparée à la plus longue série de chaque année depuis ${REC_START}. En violet : la série si la prévision se réalise.</div></div>`;
       } else if (S.type === "dates"){
         h += `<div class="card"><h2>Dates précoces et tardives</h2><div class="tw"><table>
           <tr><th>Événement</th><th>Cette année</th><th>Rang</th><th>Record</th></tr>`;
