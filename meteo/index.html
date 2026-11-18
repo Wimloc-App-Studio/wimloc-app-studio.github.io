@@ -1491,13 +1491,6 @@ async function computeRecords(){
     addSection(t, toDateRows(`${cy}-01-01`, lastObsISO, t, ph, TP, true), toDateRows(`${cy}-01-01`, endY, t, ph, TP, false),
       `Comparé aux autres années sur la même période (mesures jusqu'au ${frDayMonth(lastObsISO)} ; en violet, jusqu'au ${frDayMonth(endY)} avec la prévision).`);
   }
-  {
-    const hy = cm >= 9 ? cy : cy - 1, t = `Année hydrologique ${hy}-${String(hy+1).slice(2)}`;
-    const ph = `à cette date de l'année hydrologique depuis ${REC_START}`;
-    const HP = MP.filter(P => ["pSum","rainDays","dryDays","r10","r20"].includes(P.k));
-    addSection(t + " · depuis le 1er septembre", toDateRows(`${hy}-09-01`, lastObsISO, t, ph, HP, true), toDateRows(`${hy}-09-01`, lastISO, t, ph, HP, false));
-  }
-
   // ---------- 3. Séries en cours ----------
   const runRows = [];
   RUNS.forEach(R => {
