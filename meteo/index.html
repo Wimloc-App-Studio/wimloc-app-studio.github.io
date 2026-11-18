@@ -40,6 +40,7 @@
   .hr{min-width:58px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
   .hr .i{font-size:22px;line-height:1}
   .hr .rd{display:block;margin:-2px auto 0;height:9px}
+  .fcv{color:#c084fc;font-size:12px}
   h3.lvl{font-size:15px;margin:14px 0 4px;padding-top:8px;border-top:1px solid var(--line)}
   h3.lvl:first-of-type{border-top:0;margin-top:4px;padding-top:0}
   h3.lvl .nb{background:#b45309;color:#fff;border-radius:9px;padding:0 7px;font-size:12px;margin-left:4px}
@@ -1343,9 +1344,10 @@ async function computeRecords(){
   };
   const alerts = [], sections = [];
   const winFrom = eT - 7;
-  const inWindow = iso => epochDay(iso) >= winFrom;
+  const isObs = iso => { const d = days.get(iso); return !!d && d.src === "obs" && iso < today; };
+  const lastObsISO = [...keys].reverse().find(isObs) || isoFromEpoch(eT - 1);
 
-  // ---------- 1. Jours (top 5 pour le même mois) ----------
+  // ---------- 1. Jours : uniquement des jours mesurés (pas de prévision) ----------
   const refD = {};
   keys.forEach(iso => {
     const d = days.get(iso);
@@ -1353,18 +1355,21 @@ async function computeRecords(){
     const m = +iso.slice(5,7);
     DP.forEach(P => { const x = dayVal(P, d); if (x == null) return; ((refD[m] ||= {})[P.k] ||= []).push({v:x, date:iso}); });
   });
-  for (let e = winFrom; e <= epochDay(lastISO); e++){
-    const iso = isoFromEpoch(e), d = days.get(iso); if (!d) continue;
-    const m = +iso.slice(5,7), when = e < eT ? (d.src === "obs" ? "observé" : "estimé") : e === eT ? "aujourd'hui, prévu" : "prévu";
+  for (let e = winFrom; e < eT; e++){
+    const iso = isoFromEpoch(e), d = days.get(iso);
+    if (!d || d.src !== "obs") continue;
+    const m = +iso.slice(5,7);
     DP.forEach(P => {
       const x = dayVal(P, d); if (x == null) return;
+      // les cumuls sur plusieurs jours doivent être entièrement mesurés
+      if ((P.k === "p3" || P.k === "p7" || P.k === "dtx") && ![...Array(P.k === "p7" ? 7 : P.k === "p3" ? 3 : 2)].every((_,q) => isObs(isoFromEpoch(e-q)))) return;
       const ref = ((refD[m] || {})[P.k] || []);
       if (ref.length < 300) return;
       P.dirs.forEach(dir => {
         const r = rankOf(x, ref, dir);
         if (r.pess > TOP) return;
-        alerts.push({lvl:"jour", c:P.c, rank:r.rank, sort: r.rank + (e < eT ? 0.5 : 0),
-          html:`<b>${new Date(iso+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}</b> <small>(${when})</small> · ${P.lbl} : <b>${fmtV(x,P.u,P.sign)}</b>
+        alerts.push({lvl:"jour", c:P.c, rank:r.rank, sort: r.rank,
+          html:`<b>${new Date(iso+"T12:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})}</b> · ${P.lbl} : <b>${fmtV(x,P.u,P.sign)}</b>
             → ${rankTxt(r, dir)} pour un jour ${deMois(m)} depuis ${REC_START}
             <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u,P.sign)} le ${frDate(r.best.date)})</small>`});
       });
@@ -1393,6 +1398,7 @@ async function computeRecords(){
     return {S, nDays: (+y % 4 ? 365 : 366), label: y};
   });
 
+  // Classe une période ; les alertes ne viennent que des versions « mesurées »
   function evalPeriod(spec){
     const S = spec.S, rows = [];
     spec.params.forEach(P => {
@@ -1403,82 +1409,108 @@ async function computeRecords(){
       const dirs = full ? ["hi","lo"] : P.kind === "min" ? ["lo"] : P.kind === "mean" ? ["hi","lo"] : ["hi"];
       const hi = rankOf(val, ref, "hi"), lo = rankOf(val, ref, "lo");
       rows.push({P, val, hi, lo, n: ref.length, dirs});
-      if (spec.noAlert) return;
+      if (!spec.alert) return;
       dirs.forEach(dir => {
         const r = dir === "hi" ? hi : lo;
         if (r.pess > TOP) return;
-        alerts.push({lvl: spec.lvl, c:P.c, rank:r.rank, sort: r.rank - 0.25,
+        alerts.push({lvl: spec.lvl, c:P.c, rank:r.rank, sort: r.rank,
           html:`<b>${spec.title}</b> <small>(${spec.when})</small> · ${P.lbl} : <b>${fmtV(val,P.u)}</b>
             → ${rankTxt(r, dir)} ${spec.phrase}
             <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,P.u)} en ${r.best.date})</small>`});
       });
     });
-    sections.push({type:"period", title: spec.title + (spec.sub ? " · " + spec.sub : ""), rows, note: spec.note});
+    return rows;
+  }
+  // Fusionne les lignes « mesuré » et « avec prévision » pour le tableau
+  function addSection(title, rowsO, rowsF, note){
+    const map = new Map();
+    rowsO.forEach(r => map.set(r.P.k, {P:r.P, o:r, f:null}));
+    (rowsF || []).forEach(r => { const x = map.get(r.P.k) || {P:r.P, o:null, f:null}; x.f = r; map.set(r.P.k, x); });
+    const rows = MP.filter(P => map.has(P.k)).map(P => map.get(P.k));
+    sections.push({type:"period", title, rows, note});
   }
   const [cy, cm, cd] = today.split("-").map(Number);
   const tolM = {T:3, P:1, I:3}, tolY = {T:10, P:5, I:20};
-  const listBetween = (a, b) => { const L = []; for (let e=epochDay(a); e<=epochDay(b); e++){ const d = days.get(isoFromEpoch(e)); if (d) L.push(d); } return L; };
+  const listBetween = (a, b, obsOnly) => {
+    const L = [];
+    for (let e=epochDay(a); e<=epochDay(b); e++){
+      const iso = isoFromEpoch(e), d = days.get(iso);
+      if (d && (!obsOnly || isObs(iso))) L.push(d);
+    }
+    return L;
+  };
 
-  // Mois en cours (observé + prévu)
-  {
-    const n = dim(cy, cm), first = `${cy}-${String(cm).padStart(2,"0")}-01`;
-    const endISO = `${cy}-${String(cm).padStart(2,"0")}-${String(n).padStart(2,"0")}`;
-    const L = listBetween(first, endISO < lastISO ? endISO : lastISO), full = L.length === n;
-    const S = periodStats(L); S.tsun = null;
-    evalPeriod({lvl:"mois", title:`${MONTHS_FULL[cm-1]} ${cy}`, sub: full ? "observé + prévu jusqu'à la fin du mois" : `du 1er au ${L.length}, observé + prévu`,
-      when: full ? "observé + prévu" : "à date", S, nDays:n, full, ref: refMonth[cm] || [], params: MP, tol: tolM,
-      phrase:`pour un mois ${deMois(cm)} depuis ${REC_START}`,
-      note:`Rang parmi les mois ${deMois(cm)} depuis ${REC_START}. Vent, humidité, pression et phénomènes : mesures seulement (pas de prévision), donc classements « déjà acquis » tant que le mois n'est pas fini.`});
-  }
+  // (mois en cours : voir plus bas, comparé à la même période des autres années)
   // Mois précédent, les 10 premiers jours
   if (cd <= 10){
     const py = cm === 1 ? cy-1 : cy, pm = cm === 1 ? 12 : cm-1, key = `${py}-${String(pm).padStart(2,"0")}`;
-    const L = listBetween(`${key}-01`, `${key}-${String(dim(py,pm)).padStart(2,"0")}`);
+    const L = listBetween(`${key}-01`, `${key}-${String(dim(py,pm)).padStart(2,"0")}`, true);
     const S = periodStats(L); S.tsun = tsunM[key] ?? null;
-    evalPeriod({lvl:"mois", title:`${MONTHS_FULL[pm-1]} ${py}`, sub:"terminé", when:"terminé", S, nDays:dim(py,pm), full:true,
+    const rowsO = evalPeriod({lvl:"mois", title:`${MONTHS_FULL[pm-1]} ${py}`, when:"terminé", S, nDays:dim(py,pm), full: L.length === dim(py,pm), alert:true,
       ref:(refMonth[pm] || []).filter(r => r.label !== String(py)), params: MP, tol: tolM, phrase:`pour un mois ${deMois(pm)} depuis ${REC_START}`});
+    addSection(`${MONTHS_FULL[pm-1]} ${py} · terminé`, rowsO, null);
   }
   // Année précédente, en janvier
   if (cm === 1){
-    const L = listBetween(`${cy-1}-01-01`, `${cy-1}-12-31`), S = periodStats(L);
+    const L = listBetween(`${cy-1}-01-01`, `${cy-1}-12-31`, true), S = periodStats(L);
     const ts = [...Array(12)].map((_,i) => tsunM[`${cy-1}-${String(i+1).padStart(2,"0")}`]);
     S.tsun = ts.every(x => x != null) ? ts.reduce((a,b)=>a+b,0) : null;
-    evalPeriod({lvl:"annee", title:`Année ${cy-1}`, sub:"terminée", when:"année terminée", S, nDays: (cy-1) % 4 ? 365 : 366, full:true,
+    const rowsO = evalPeriod({lvl:"annee", title:`Année ${cy-1}`, when:"année terminée", S, nDays: (cy-1) % 4 ? 365 : 366, full:true, alert:true,
       ref: refYear.filter(r => r.label !== String(cy-1)), params: MP, tol: tolY, phrase:`pour une année depuis ${REC_START}`});
+    addSection(`Année ${cy-1} · terminée`, rowsO, null);
   }
-  // Année en cours à date, et année hydrologique (1er septembre → aujourd'hui)
+  // Année en cours et année hydrologique, comparées aux autres années à la même date
   const TP = MP.filter(P => P.src === "T" || P.src === "P");
-  function toDate(startISO, endISO, title, sub, phrase, params){
+  function toDateRows(startISO, endISO, title, phrase, params, obsOnly, lvl){
     const n = epochDay(endISO) - epochDay(startISO) + 1;
-    const S = periodStats(listBetween(startISO, endISO));
+    if (n < 1) return [];
+    const S = periodStats(listBetween(startISO, endISO, obsOnly));
     const ref = [];
     for (let y = REC_START; y < +startISO.slice(0,4); y++){
       const a = `${y}${startISO.slice(4)}`, b = isoFromEpoch(epochDay(a) + n - 1);
-      const L = listBetween(a, b).filter(d => d.src === "obs");
-      ref.push({S: periodStats(L), nDays: n, label: String(y) + (startISO.slice(5) !== "01-01" ? "-" + String(y+1).slice(2) : "")});
+      ref.push({S: periodStats(listBetween(a, b, true)), nDays: n, label: String(y) + ((lvl || "annee") === "annee" && startISO.slice(5) !== "01-01" ? "-" + String(y+1).slice(2) : "")});
     }
-    evalPeriod({lvl:"annee", title, sub, when:"à date, avec la prévision", S, nDays:n, full:true, ref, params, tol:{T:5, P:3, I:10}, phrase});
+    return evalPeriod({lvl: lvl || "annee", title, when: obsOnly ? `mesuré jusqu'au ${frDayMonth(endISO)}` : "", S, nDays:n, full:true, ref, params,
+      tol:{T: Math.max(1, Math.round(n*0.02)), P: Math.max(1, Math.round(n*0.01)), I: Math.max(2, Math.round(n*0.05))}, phrase, alert: obsOnly});
   }
   const endY = lastISO.slice(0,4) > String(cy) ? `${cy}-12-31` : lastISO;
-  toDate(`${cy}-01-01`, endY, `${cy} depuis le 1er janvier`, `jusqu'au ${frDayMonth(endY)} (prévision incluse)`,
-    `à cette date depuis ${REC_START}`, TP);
-  const hy = cm >= 9 ? cy : cy - 1;
-  toDate(`${hy}-09-01`, lastISO, `Année hydrologique ${hy}-${String(hy+1).slice(2)}`, `depuis le 1er septembre, jusqu'au ${frDayMonth(lastISO)}`,
-    `à cette date de l'année hydrologique depuis ${REC_START}`, MP.filter(P => ["pSum","rainDays","dryDays","r10","r20"].includes(P.k)));
+  // Mois en cours : du 1er du mois au dernier jour mesuré, comparé à la même période des autres années
+  {
+    const mm = String(cm).padStart(2,"0"), first = `${cy}-${mm}-01`, endM = `${cy}-${mm}-${String(dim(cy,cm)).padStart(2,"0")}`;
+    const t = `${MONTHS_FULL[cm-1]} ${cy}`;
+    const eo = lastObsISO < endM ? lastObsISO : endM, ef = lastISO < endM ? lastISO : endM;
+    const span = e => e === endM ? `pour un mois ${deMois(cm)} depuis ${REC_START}` : `du 1er au ${new Date(e+"T12:00").getDate()} ${MONTHS_FULL[cm-1]}, comparé à la même période depuis ${REC_START}`;
+    const rowsO = eo >= first ? toDateRows(first, eo, t, span(eo), MP, true, "mois") : [];
+    const rowsF = toDateRows(first, ef, t, span(ef), MP, false, "mois");
+    sections.splice(0, 0, null);   // place réservée : le mois en cours s'affiche en premier
+    addSection(t, rowsO, rowsF, `Du 1er au ${new Date(eo+"T12:00").getDate()} ${MONTHS_FULL[cm-1]} (mesuré), comparé aux mêmes jours de chaque année depuis ${REC_START}. En violet : jusqu'au ${new Date(ef+"T12:00").getDate()} avec la prévision${ef === endM ? ", donc le mois complet" : ""}.`);
+    sections[0] = sections.pop();
+  }
+  {
+    const t = `${cy} depuis le 1er janvier`, ph = `à cette date depuis ${REC_START}`;
+    addSection(t, toDateRows(`${cy}-01-01`, lastObsISO, t, ph, TP, true), toDateRows(`${cy}-01-01`, endY, t, ph, TP, false),
+      `Comparé aux autres années sur la même période (mesures jusqu'au ${frDayMonth(lastObsISO)} ; en violet, jusqu'au ${frDayMonth(endY)} avec la prévision).`);
+  }
+  {
+    const hy = cm >= 9 ? cy : cy - 1, t = `Année hydrologique ${hy}-${String(hy+1).slice(2)}`;
+    const ph = `à cette date de l'année hydrologique depuis ${REC_START}`;
+    const HP = MP.filter(P => ["pSum","rainDays","dryDays","r10","r20"].includes(P.k));
+    addSection(t + " · depuis le 1er septembre", toDateRows(`${hy}-09-01`, lastObsISO, t, ph, HP, true), toDateRows(`${hy}-09-01`, lastISO, t, ph, HP, false));
+  }
 
   // ---------- 3. Séries en cours ----------
   const runRows = [];
   RUNS.forEach(R => {
     const yearMax = {};
-    let len = 0, start = null, cur = null;
+    let len = 0, start = null, curF = null, curO = null;
+    // a) toutes les séries passées mesurées (référence) et la série en cours avec prévision
     keys.forEach((iso, i) => {
       const d = days.get(iso), ok = R.f(d);
       if (ok){ if (!len) start = iso; len++; }
-      const last = i === keys.length - 1;
-      if (!ok || last){
+      if (!ok || i === keys.length - 1){
         const end = ok ? iso : keys[i-1];
         if (len){
-          if (end >= today && start <= today) cur = {len, start, end};
+          if (end >= today && start <= today) curF = {len, start, end};
           else if (end < isoFromEpoch(winFrom) && days.get(end).src === "obs"){
             const y = end.slice(0,4);
             if (!yearMax[y] || len > yearMax[y].v) yearMax[y] = {v: len, date: end};
@@ -1487,14 +1519,18 @@ async function computeRecords(){
         len = 0;
       }
     });
-    if (!cur || cur.len < 2) { runRows.push({R, cur:null}); return; }
+    // b) la série en cours sur les seuls jours mesurés (se termine au dernier jour mesuré)
+    let k = 0; const okObs = iso => isObs(iso) && R.f(days.get(iso));
+    for (let e = epochDay(lastObsISO); okObs(isoFromEpoch(e)); e--) k++;
+    if (k >= 2) curO = {len:k, start: isoFromEpoch(epochDay(lastObsISO) - k + 1), end: lastObsISO};
     const ref = Object.entries(yearMax).filter(([y]) => +y < cy).map(([,x]) => x);
-    const r = rankOf(cur.len, ref, "hi");
-    runRows.push({R, cur, r});
-    if (r.pess <= TOP) alerts.push({lvl:"annee", c:R.c, rank:r.rank, sort:r.rank - 0.4,
-      html:`<b>Série en cours</b> <small>(depuis le ${frDayMonth(cur.start)}${cur.end > today ? `, prévision incluse jusqu'au ${frDayMonth(cur.end)}` : ""})</small> · ${R.lbl} : <b>${cur.len} j</b>
-        → ${rankTxt(r, "hi", "série la plus longue")} depuis ${REC_START}
-        <small>(${r.rank===1?"ancien record":"record"} : ${r.best.v} j, jusqu'au ${frDate(r.best.date)})</small>`});
+    const rO = curO && ref.length >= 10 ? rankOf(curO.len, ref, "hi") : null;
+    const rF = curF && curF.len >= 2 && ref.length >= 10 ? rankOf(curF.len, ref, "hi") : null;
+    runRows.push({R, curO, rO, curF: curF && curF.len >= 2 ? curF : null, rF});
+    if (rO && rO.pess <= TOP) alerts.push({lvl:"annee", c:R.c, rank:rO.rank, sort:rO.rank,
+      html:`<b>Série en cours</b> <small>(depuis le ${frDayMonth(curO.start)}, mesuré jusqu'au ${frDayMonth(curO.end)})</small> · ${R.lbl} : <b>${curO.len} j</b>
+        → ${rankTxt(rO, "hi", "série la plus longue")} depuis ${REC_START}
+        <small>(${rO.rank===1?"ancien record":"record"} : ${rO.best.v} j, jusqu'au ${frDate(rO.best.date)})</small>`});
   });
   sections.push({type:"runs", rows: runRows});
 
@@ -1503,39 +1539,40 @@ async function computeRecords(){
   const fromJul = (iso, s) => epochDay(iso) - epochDay(`${s}-07-01`);
   const dateRows = [];
   DATES.forEach(D => {
-    const perYear = {};
-    let curISO = null;
+    const perYear = {}, perYearObs = {};
     keys.forEach(iso => {
       const d = days.get(iso);
       const hit = D.th ? d.tx != null && d.tx >= D.th : d.tn != null && d.tn <= 0;
       if (!hit) return;
       const season = D.th ? +iso.slice(0,4) : (+iso.slice(5,7) >= 7 ? +iso.slice(0,4) : +iso.slice(0,4) - 1);
-      const o = perYear[season] ||= {first:null, last:null};
-      if (!o.first) o.first = iso;
-      o.last = iso;
+      for (const [store, ok] of [[perYear, true], [perYearObs, isObs(iso)]]){
+        if (!ok) continue;
+        const o = store[season] ||= {first:null, last:null};
+        if (!o.first) o.first = iso;
+        o.last = iso;
+      }
     });
     const curSeason = D.th ? cy : (cm >= 7 ? cy : cy - 1);
     const pos = (iso, s) => D.th ? doy(iso) : fromJul(iso, s);
     const isFirst = D.type === "first" || D.type === "frostFirst";
-    const c = perYear[curSeason];
-    curISO = c ? (isFirst ? c.first : c.last) : null;
-    const ref = Object.entries(perYear).filter(([s]) => +s < curSeason && +s >= REC_START)
-      .map(([s,o]) => ({v: pos(isFirst ? o.first : o.last, +s), date: isFirst ? o.first : o.last}));
-    if (!curISO || ref.length < 10){ dateRows.push({D, curISO:null}); return; }
-    const valPos = pos(curISO, curSeason);
-    // un « dernier jour » n'a de sens qu'en fin de saison
-    if (!isFirst && (D.th ? valPos < 212 : valPos < 184)){ dateRows.push({D, curISO, pending:true}); return; }
-    const dir = isFirst ? "lo" : "hi", r = rankOf(valPos, ref, dir);
-    dateRows.push({D, curISO, r, dir});
-    if (r.pess <= TOP && inWindow(curISO)) alerts.push({lvl:"annee", c:"T", rank:r.rank, sort:r.rank - 0.3,
-      html:`<b>${D.lbl}</b> : <b>${frDayMonth(curISO)}</b>${epochDay(curISO) >= eT ? " <small>(prévu)</small>" : ""}
-        → ${rankTxt(r, dir, isFirst ? "date la plus précoce" : "date la plus tardive")} depuis ${REC_START}
-        <small>(${r.rank===1?"ancien record":"record"} : ${frDate(r.best.date)})</small>`});
+    const pick = o => o ? (isFirst ? o.first : o.last) : null;
+    const ref = Object.entries(perYearObs).filter(([s]) => +s < curSeason && +s >= REC_START)
+      .map(([s,o]) => ({v: pos(pick(o), +s), date: pick(o)}));
+    const tooEarly = iso => !isFirst && (D.th ? pos(iso, curSeason) < 212 : pos(iso, curSeason) < 184);
+    const dir = isFirst ? "lo" : "hi";
+    const isoO = pick(perYearObs[curSeason]), isoF = pick(perYear[curSeason]);
+    const rO = isoO && ref.length >= 10 && !tooEarly(isoO) ? rankOf(pos(isoO, curSeason), ref, dir) : null;
+    const rF = isoF && ref.length >= 10 && !tooEarly(isoF) ? rankOf(pos(isoF, curSeason), ref, dir) : null;
+    dateRows.push({D, isoO, rO, isoF: isoF !== isoO ? isoF : null, rF: isoF !== isoO ? rF : null, dir, pending: (isoO && tooEarly(isoO))});
+    if (rO && rO.pess <= TOP && epochDay(isoO) >= winFrom) alerts.push({lvl:"annee", c:"T", rank:rO.rank, sort:rO.rank,
+      html:`<b>${D.lbl}</b> : <b>${frDayMonth(isoO)}</b>
+        → ${rankTxt(rO, dir, isFirst ? "date la plus précoce" : "date la plus tardive")} depuis ${REC_START}
+        <small>(${rO.rank===1?"ancien record":"record"} : ${frDate(rO.best.date)})</small>`});
   });
   sections.push({type:"dates", rows: dateRows});
 
   alerts.sort((a,b) => a.sort - b.sort);
-  return {alerts, sections, histEnd: hist.end, isdOk: !!(isd && isd.days)};
+  return {alerts, sections, histEnd: hist.end, lastObsISO, isdOk: !!(isd && isd.days)};
 }
 
 function catRows(rows, render, cols){
@@ -1563,40 +1600,55 @@ async function initRecords(){
         h += A.map(a => `<div class="alert${a.rank===1?" rec":""}"><span class="ai">${a.rank===1?"🏆":CAT[a.c][1]}</span><div>${a.html}</div></div>`).join("");
       });
     }
-    h += `<div class="mut" style="margin-top:8px">Alerte si une valeur entre dans le top ${TOP} depuis ${REC_START} : jours et mois comparés au même mois de l'année, séries et dates comparées à toutes les années.</div></div>`;
-    const hl = rk => rk.pess <= TOP ? ` style="color:#fbbf24;font-weight:700"` : "";
+    h += `<div class="mut" style="margin-top:8px">Uniquement des valeurs mesurées (jusqu'au ${frDayMonth(R.lastObsISO)}). Alerte si une valeur entre dans le top ${TOP} depuis ${REC_START} : jours et mois comparés au même mois de l'année, séries et dates comparées à toutes les années.</div></div>`;
+    h += `<div class="mut" style="margin:0 2px 10px">Dans les tableaux : valeurs mesurées en blanc, <span class="fcv">en violet avec la prévision</span>.</div>`;
+    const hl = rk => rk && rk.pess <= TOP ? ` style="color:#fbbf24;font-weight:700"` : "";
+    const rk = (x, dir) => x && x.dirs.includes(dir) ? `${ordinal(x[dir].rank)}/${x.n+1}` : "—";
+    const fcLine = txt => txt ? `<br><span class="fcv">${txt}</span>` : "";
     R.sections.forEach(S => {
       if (S.type === "period"){
         if (!S.rows.length) return;
         h += `<div class="card"><h2>${S.title}</h2><div class="tw"><table>
           <tr><th>Paramètre</th><th>Valeur</th><th>Rang haut</th><th>Rang bas</th><th>Record haut</th><th>Record bas</th></tr>`;
-        h += catRows(S.rows, r => `<tr><td style="white-space:normal;min-width:150px">${r.P.lbl}</td><td><b>${fmtV(r.val,r.P.u)}</b></td>
-          <td${r.dirs.includes("hi")?hl(r.hi):""}>${r.dirs.includes("hi") ? ordinal(r.hi.rank)+"/"+(r.n+1) : "—"}</td>
-          <td${r.dirs.includes("lo")?hl(r.lo):""}>${r.dirs.includes("lo") ? ordinal(r.lo.rank)+"/"+(r.n+1) : "—"}</td>
-          <td>${fmtV(r.hi.best.v,r.P.u)} <small>${r.hi.best.date}</small></td><td>${fmtV(r.lo.best.v,r.P.u)} <small>${r.lo.best.date}</small></td></tr>`, 6);
+        h += catRows(S.rows, r => {
+          const o = r.o, f = r.f, P = r.P;
+          const diff = f && (!o || f.val !== o.val);
+          const base = o || f;
+          return `<tr><td style="white-space:normal;min-width:150px">${P.lbl}</td>
+            <td>${o ? `<b>${fmtV(o.val,P.u)}</b>` : "—"}${fcLine(diff ? fmtV(f.val,P.u) : "")}</td>
+            <td${o && o.dirs.includes("hi") ? hl(o.hi) : ""}>${rk(o,"hi")}${fcLine(diff ? rk(f,"hi") : "")}</td>
+            <td${o && o.dirs.includes("lo") ? hl(o.lo) : ""}>${rk(o,"lo")}${fcLine(diff ? rk(f,"lo") : "")}</td>
+            <td>${fmtV(base.hi.best.v,P.u)} <small>${base.hi.best.date}</small></td><td>${fmtV(base.lo.best.v,P.u)} <small>${base.lo.best.date}</small></td></tr>`;
+        }, 6);
         h += `</table></div>${S.note ? `<div class="mut" style="margin-top:6px">${S.note}</div>` : ""}</div>`;
       } else if (S.type === "runs"){
         h += `<div class="card"><h2>Séries en cours</h2><div class="tw"><table>
           <tr><th>Série</th><th>En cours</th><th>Rang</th><th>Record</th></tr>`;
-        h += catRows(S.rows, r => `<tr><td style="white-space:normal;min-width:150px">${r.R.lbl}</td>
-          <td>${r.cur ? `<b>${r.cur.len} j</b> <small>depuis le ${frDayMonth(r.cur.start)}</small>` : "<small>aucune</small>"}</td>
-          <td${r.r ? hl(r.r) : ""}>${r.r ? ordinal(r.r.rank) + "/" + (r.r.n+1) : "—"}</td>
-          <td>${r.r ? `${r.r.best.v} j <small>${r.r.best.date.slice(0,4)}</small>` : "—"}</td></tr>`, 4);
-        h += `</table></div><div class="mut" style="margin-top:6px">Une série en cours compte la prévision tant que la condition continue. Comparée à la plus longue série de chaque année.</div></div>`;
+        h += catRows(S.rows, r => {
+          const diff = r.curF && (!r.curO || r.curF.len !== r.curO.len);
+          const best = (r.rO || r.rF);
+          return `<tr><td style="white-space:normal;min-width:150px">${r.R.lbl}</td>
+            <td>${r.curO ? `<b>${r.curO.len} j</b> <small>depuis le ${frDayMonth(r.curO.start)}</small>` : "<small>aucune</small>"}${fcLine(diff ? `${r.curF.len} j jusqu'au ${frDayMonth(r.curF.end)}` : "")}</td>
+            <td${hl(r.rO)}>${r.rO ? ordinal(r.rO.rank) + "/" + (r.rO.n+1) : "—"}${fcLine(diff && r.rF ? ordinal(r.rF.rank) + "/" + (r.rF.n+1) : "")}</td>
+            <td>${best ? `${best.best.v} j <small>${best.best.date.slice(0,4)}</small>` : "—"}</td></tr>`;
+        }, 4);
+        h += `</table></div><div class="mut" style="margin-top:6px">Comparée à la plus longue série de chaque année depuis ${REC_START}. En violet : la série si la prévision se réalise.</div></div>`;
       } else if (S.type === "dates"){
         h += `<div class="card"><h2>Dates précoces et tardives</h2><div class="tw"><table>
           <tr><th>Événement</th><th>Cette année</th><th>Rang</th><th>Record</th></tr>`;
         S.rows.forEach(r => {
+          const best = r.rO || r.rF;
+          const word = r.dir === "lo" ? "précoce" : "tardif";
           h += `<tr><td style="white-space:normal;min-width:150px">${r.D.lbl}</td>
-            <td>${r.curISO ? frDayMonth(r.curISO) : "<small>pas encore</small>"}</td>
-            <td${r.r ? hl(r.r) : ""}>${r.r ? `${ordinal(r.r.rank)}/${r.r.n+1} <small>${r.dir === "lo" ? "précoce" : "tardif"}</small>` : r.pending ? "<small>saison en cours</small>" : "—"}</td>
-            <td>${r.r ? frDate(r.r.best.date) : "—"}</td></tr>`;
+            <td>${r.isoO ? frDayMonth(r.isoO) : "<small>pas encore</small>"}${fcLine(r.isoF ? frDayMonth(r.isoF) + " (prévu)" : "")}</td>
+            <td${hl(r.rO)}>${r.rO ? `${ordinal(r.rO.rank)}/${r.rO.n+1} <small>${word}</small>` : r.pending ? "<small>saison en cours</small>" : "—"}${fcLine(r.rF ? `${ordinal(r.rF.rank)}/${r.rF.n+1}` : "")}</td>
+            <td>${best ? frDate(best.best.date) : "—"}</td></tr>`;
         });
         h += `</table></div><div class="mut" style="margin-top:6px">L'hiver va du 1er juillet au 30 juin pour les gelées.</div></div>`;
       }
     });
-    h += `<div class="card mut">Jour de pluie = au moins 1 mm. Température et pluie : station Séville Aéroport (GHCN-Daily NOAA et Meteostat) jusqu'au ${new Date(R.histEnd+"T12:00").toLocaleDateString("fr-FR")}, puis modèle Open-Meteo (« estimé » pour le passé, « prévu » pour l'avenir).
-      Vent, humidité, pression, orages, brouillard, grêle et poussière : relevés horaires NOAA ISD de la station (jours UTC)${R.isdOk ? "" : " — pas encore disponibles, ils arrivent avec la prochaine mise à jour"}.
+    h += `<div class="card mut">Jour de pluie = au moins 1 mm. Température et pluie : station Séville Aéroport (GHCN-Daily NOAA et Meteostat) jusqu'au ${new Date(R.histEnd+"T12:00").toLocaleDateString("fr-FR")} ; prévision Open-Meteo (en violet dans les tableaux).
+      Vent, humidité, pression, orages, brouillard, grêle et poussière : relevés horaires NOAA ISD et METAR de la station (jours UTC)${R.isdOk ? "" : " — pas encore disponibles"}.
       Soleil : ensoleillement mensuel Meteostat (environ depuis 1995).</div>`;
     el.innerHTML = h;
   }catch(e){
