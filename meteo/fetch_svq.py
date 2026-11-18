@@ -467,9 +467,21 @@ def heat_index(t, rh):
 
 
 def isd_year(y):
-    txt = get_retry(f"https://www.ncei.noaa.gov/data/global-hourly/access/{y}/{ISD_ID}.csv")
-    if y == 2024:
-        print("ISD diag", len(txt), repr(txt[:300]))
+    txt = None
+    for url in (f"https://noaa-global-hourly-pds.s3.amazonaws.com/{y}/{ISD_ID}.csv",
+                f"https://www.ncei.noaa.gov/data/global-hourly/access/{y}/{ISD_ID}.csv"):
+        try:
+            t_ = get_retry(url, tries=2)
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            continue
+        if t_.lstrip().startswith("<"):   # page web au lieu des données
+            last_err = Exception("réponse HTML")
+            continue
+        txt = t_
+        break
+    if txt is None:
+        raise last_err
     obs = []
     for r in csv.DictReader(io.StringIO(txt)):
         date = r.get("DATE") or ""
