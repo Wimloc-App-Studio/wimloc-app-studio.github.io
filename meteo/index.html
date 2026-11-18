@@ -1534,6 +1534,44 @@ async function computeRecords(){
     addSection(t, toDateRows(`${cy}-01-01`, lastObsISO, t, ph, TP, true), toDateRows(`${cy}-01-01`, endY, t, ph, TP, false),
       `Comparé aux autres années sur la même période (mesures jusqu'au ${frDayMonth(lastObsISO)} ; en violet, jusqu'au ${frDayMonth(endY)} avec la prévision).`);
   }
+  // ---------- Ensoleillement : mesures mensuelles de la station (publiées avec ~1 mois et demi de retard) ----------
+  {
+    const P0 = MP.find(P => P.k === "tsun"), rows = [];
+    const sunKeys = Object.keys(tsunM).filter(k => k >= `${REC_START}`).sort();
+    const lastK = sunKeys[sunKeys.length - 1];
+    const addRow = (lbl, val, ref, lvl, title, phrase) => {
+      if (val == null || ref.length < 10) return;
+      const P = {...P0, lbl}, hi = rankOf(val, ref, "hi"), lo = rankOf(val, ref, "lo");
+      rows.push({P, o:{P, val, hi, lo, n: ref.length, dirs:["hi","lo"]}, f:null});
+      [["hi",hi],["lo",lo]].forEach(([dir, r]) => {
+        if (r.pess > TOP) return;
+        alerts.push({lvl, c:"S", rank:r.rank, sort:r.rank,
+          html:`<b>${title}</b> <small>(dernière mesure disponible)</small> · Ensoleillement : <b>${fmtV(val,"h")}</b>
+            → ${rankTxt(r, dir)} ${phrase}
+            <small>(${r.rank===1?"ancien record":"record"} : ${fmtV(r.best.v,"h")} en ${r.best.date})</small>`});
+      });
+    };
+    if (lastK){
+      const [ly, lm] = lastK.split("-").map(Number), mm = String(lm).padStart(2,"0");
+      // 1) dernier mois connu, comparé au même mois des autres années
+      addRow(`Ensoleillement de ${MONTHS_FULL[lm-1]} ${ly}`, tsunM[lastK],
+        sunKeys.filter(k => k.slice(5) === mm && k !== lastK).map(k => ({v: tsunM[k], date: k.slice(0,4)})),
+        "mois", `${MONTHS_FULL[lm-1]} ${ly}`, `pour un mois ${deMois(lm)} depuis ${REC_START}`);
+      // 2) cumul de janvier au dernier mois connu, comparé aux mêmes mois des autres années
+      const sumTo = y => { let t = 0; for (let m=1; m<=lm; m++){ const v = tsunM[`${y}-${String(m).padStart(2,"0")}`]; if (v == null) return null; t += v; } return t; };
+      const refY = []; for (let y = REC_START; y < ly; y++){ const v = sumTo(y); if (v != null) refY.push({v, date: String(y)}); }
+      if (lm < 12) addRow(`Ensoleillement de janvier à ${MONTHS_FULL[lm-1]} ${ly}`, sumTo(ly), refY, "annee",
+        `${ly}, de janvier à ${MONTHS_FULL[lm-1]}`, `sur les mêmes mois depuis ${REC_START}`);
+      // 3) dernière année complète
+      const full = y => { const v = []; for (let m=1; m<=12; m++){ const x = tsunM[`${y}-${String(m).padStart(2,"0")}`]; if (x == null) return null; v.push(x); } return v.reduce((a,b)=>a+b,0); };
+      let fy = lm === 12 ? ly : ly - 1; while (fy >= REC_START && full(fy) == null) fy--;
+      const refF = []; for (let y = REC_START; y <= ly; y++){ if (y === fy) continue; const v = full(y); if (v != null) refF.push({v, date: String(y)}); }
+      if (fy >= REC_START) addRow(`Ensoleillement de l'année ${fy}`, full(fy), refF, "annee", `Année ${fy}`, `pour une année depuis ${REC_START}`);
+    }
+    if (rows.length) sections.push({type:"period", title:"Ensoleillement", rows,
+      note:`Mesures mensuelles de la station (Meteostat), publiées avec environ un mois et demi de retard ; disponibles à partir de 1995 environ, avec quelques années incomplètes.`});
+  }
+
   // ---------- 4. Dates précoces et tardives ----------
   const doy = iso => epochDay(iso) - epochDay(iso.slice(0,4) + "-01-01");
   const fromJul = (iso, s) => epochDay(iso) - epochDay(`${s}-07-01`);
