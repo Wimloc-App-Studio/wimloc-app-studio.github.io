@@ -36,9 +36,14 @@
   .now .det{font-size:14px;line-height:1.6}
 
   /* 48 h */
-  .strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
-  .hr{min-width:58px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:13px}
-  .hr .i{font-size:22px;line-height:1}
+  .strip{display:flex;gap:3px;overflow-x:auto;padding-bottom:6px}
+  .hr{min-width:38px;max-width:38px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:4px 1px;text-align:center;font-size:12px}
+  .hr .hh{font-weight:700;font-size:12px;line-height:1.1;min-height:26px;display:flex;flex-direction:column;justify-content:flex-end}
+  .hr .hh .dn{font-size:10px;color:#fca5a5;font-weight:600}
+  .hr .tt{font-weight:700;font-size:13px}
+  .hr .mm{color:#7dd3fc;font-size:10px;min-height:12px}
+  .hr .ww{font-size:10px;color:var(--mut);white-space:nowrap}
+  .hr .i{font-size:18px;line-height:1;margin-top:2px}
   .hr .rd{display:block;margin:-2px auto 0;height:9px}
   .fcv{color:#c084fc;font-size:12px}
   .rk1{color:#facc15}.rk2{color:#4ade80}.rk3{color:#f59e0b}.rk4{color:#7dd3fc}
@@ -46,12 +51,12 @@
   h3.lvl{font-size:15px;margin:14px 0 4px;padding-top:8px;border-top:1px solid var(--line)}
   h3.lvl:first-of-type{border-top:0;margin-top:4px;padding-top:0}
   h3.lvl .nb{background:#b45309;color:#fff;border-radius:9px;padding:0 7px;font-size:12px;margin-left:4px}
-  .hr .vb{height:34px;display:flex;align-items:flex-end;justify-content:center;margin:3px 0}
-  .hr .vb i{width:14px;background:#3b82f6;border-radius:3px 3px 0 0}
+  .hr .vb{height:24px;display:flex;align-items:flex-end;justify-content:center;margin:2px 0}
+  .hr .vb i{width:10px;background:#3b82f6;border-radius:3px 3px 0 0}
   .hr{position:relative}
   /* séparation des jours : demi-rectangle droit de la dernière case du jour, demi-rectangle gauche de la première du lendemain */
-  .hr.endday::after{content:"";position:absolute;top:-1px;bottom:-1px;left:50%;right:-1px;border:2px solid #991b1b;border-left:0;border-radius:0 10px 10px 0;pointer-events:none}
-  .hr.newday::before{content:"";position:absolute;top:-1px;bottom:-1px;right:50%;left:-1px;border:2px solid #991b1b;border-right:0;border-radius:10px 0 0 10px;pointer-events:none}
+  .hr.endday::after{content:"";position:absolute;top:-1px;bottom:-1px;left:50%;right:-1px;border:2px solid #991b1b;border-left:0;border-radius:0 8px 8px 0;pointer-events:none}
+  .hr.newday::before{content:"";position:absolute;top:-1px;bottom:-1px;right:50%;left:-1px;border:2px solid #991b1b;border-right:0;border-radius:8px 0 0 8px;pointer-events:none}
   .strip{scrollbar-color:#1e3a8a #374151;scrollbar-width:thin}
   .strip::-webkit-scrollbar{height:8px}
   .strip::-webkit-scrollbar-track{background:#374151;border-radius:4px}
@@ -144,7 +149,7 @@
   <section id="t-prevision">
     <div class="card hello" id="helloBox"><div class="hi">Bonjour Thomas</div><div class="mut">Je regarde le ciel de Séville…</div></div>
     <div class="card" id="nowBox"><div class="mut">Chargement…</div></div>
-    <div class="card"><h2>Prochaines 48 heures</h2><div class="strip" id="strip"></div></div>
+    <div class="card"><h2>Prochaines 48 heures, heure par heure</h2><div class="strip" id="strip"></div></div>
     <div class="card">
       <h2>Prévisions 14 jours</h2>
       <div class="mut" style="margin-bottom:6px">Au centre : température (Tmin → Tmax) et soleil (doré) / nuages (gris). À droite : pluie du jour, jauge pleine à 25 mm.</div>
@@ -340,21 +345,21 @@ function renderStrip(d){
   let i0 = h.time.findIndex(t => t.slice(0,13) >= nowKey);
   if (i0 < 0) i0 = 0;
   let html = "";
-  for (let k=0; k<16; k++){
-    const i = i0 + k*3;
+  for (let k=0; k<48; k++){                       // heure par heure sur 48 h
+    const i = i0 + k;
     if (i >= h.time.length) break;
-    let rain = 0; for (let m=i; m<i+3 && m<h.time.length; m++) rain += h.precipitation[m] || 0;
+    const rain = h.precipitation[i] || 0;
     const hour = +h.time[i].slice(11,13);
-    const newDay = k > 0 && hour < 3;
-    const endDay = hour >= 21 && k < 15 && i + 3 < h.time.length;
-    const lbl = newDay ? new Date(h.time[i]).toLocaleDateString("fr-FR",{weekday:"short"}) + " " + hour + "h" : hour + "h";
+    const newDay = k > 0 && hour === 0;
+    const endDay = hour === 23 && k < 47 && i + 1 < h.time.length;
+    const lbl = newDay ? `<span class="dn">${new Date(h.time[i]).toLocaleDateString("fr-FR",{weekday:"short"})}</span>${hour}h` : `${hour}h`;
     html += `<div class="hr${newDay?" newday":""}${endDay?" endday":""}">
-      <div><b>${lbl}</b></div>
+      <div class="hh">${lbl}</div>
       <div class="i">${wIcon(h.weather_code[i], h.is_day[i])}</div>${rainDrops(rain)}
-      <div><b>${r0(h.temperature_2m[i])}°</b></div>
-      <div class="vb"><i style="height:${Math.min(34, rain/6*34)}px"></i></div>
-      <div style="color:#7dd3fc">${rain >= 0.1 ? fr(rain)+" mm" : "<small>sec</small>"}</div>
-      <div><small>${arrow(h.wind_direction_10m[i])} ${r0(h.wind_speed_10m[i])}</small></div>
+      <div class="tt">${r0(h.temperature_2m[i])}°</div>
+      <div class="vb"><i style="height:${Math.min(24, rain/3*24)}px"></i></div>
+      <div class="mm">${rain >= 0.1 ? fr(rain) : ""}</div>
+      <div class="ww">${arrow(h.wind_direction_10m[i])}${r0(h.wind_speed_10m[i])}</div>
     </div>`;
   }
   $("strip").innerHTML = html;
