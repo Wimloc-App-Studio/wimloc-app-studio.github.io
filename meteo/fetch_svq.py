@@ -400,6 +400,181 @@ try:
 except Exception as e:  # noqa: BLE001
     print("hist error", e)
 
+# ---------- Relevés horaires NOAA ISD (vent, humidité, pression, phénomènes) ----------
+ISD_ID = "08391099999"
+SCRIPT_T0 = time.time()
+ISD_FIELDS = ["ws", "wg", "rhmin", "rhmean", "tdmax", "slpmin", "slpmax", "slpmean", "dp24", "hi", "n", "ph"]
+WX_RE = re.compile(r"^[-+]?(MI|BC|PR|DR|BL|SH|TS|FZ)?((?:DZ|RA|SN|SG|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)*)$")
+
+
+def isd_val(v, missing, scale=10.0):
+    if not v:
+        return None
+    p = v.split(",")
+    if len(p) < 2 or p[0].lstrip("+-") in (missing,) or p[0] == missing or p[1] in "2367":
+        return None
+    try:
+        return int(p[0]) / scale
+    except ValueError:
+        return None
+
+
+def ww_bits(code):
+    b = 0
+    if code in (17, 29) or 91 <= code <= 99:
+        b |= 1                                   # orage
+    if code == 28 or 41 <= code <= 49:
+        b |= 2                                   # brouillard
+    if code in (27, 87, 88, 89, 90, 93, 94, 96, 99):
+        b |= 4                                   # grêle
+    if code in (5, 6, 7, 8, 9) or 30 <= code <= 35:
+        b |= 8                                   # brume sèche / poussière / sable
+    return b
+
+
+def metar_bits(rem):
+    m = re.search(r"METAR\s+LEZL\s+(.*)", rem or "")
+    if not m:
+        return 0
+    b = 0
+    for tok in m.group(1).split():
+        if tok in ("TEMPO", "BECMG", "RMK", "NOSIG"):
+            break
+        if tok.startswith("VC") or tok.startswith("RE"):
+            continue
+        w = WX_RE.match(tok)
+        if not w or not (w.group(1) or w.group(2)):
+            continue
+        desc, ph = w.group(1) or "", w.group(2) or ""
+        if desc == "TS":
+            b |= 1
+        if "FG" in ph and desc not in ("MI", "BC", "PR"):
+            b |= 2
+        if "GR" in ph or "GS" in ph:
+            b |= 4
+        if any(x in ph for x in ("DU", "SA", "HZ")):
+            b |= 8
+    return b
+
+
+def heat_index(t, rh):
+    f = t * 9 / 5 + 32
+    if f < 80 or rh is None:
+        return t
+    hi = (-42.379 + 2.04901523 * f + 10.14333127 * rh - .22475541 * f * rh - .00683783 * f * f
+          - .05481717 * rh * rh + .00122874 * f * f * rh + .00085282 * f * rh * rh - .00000199 * f * f * rh * rh)
+    return max(t, (hi - 32) * 5 / 9)
+
+
+def isd_year(y):
+    txt = get_retry(f"https://www.ncei.noaa.gov/data/global-hourly/access/{y}/{ISD_ID}.csv")
+    obs = []
+    for r in csv.DictReader(io.StringIO(txt)):
+        date = r.get("DATE") or ""
+        if len(date) < 16:
+            continue
+        t = isd_val(r.get("TMP"), "9999")
+        td = isd_val(r.get("DEW"), "9999")
+        slp = isd_val(r.get("SLP"), "99999")
+        ws = None
+        w = (r.get("WND") or "").split(",")
+        if len(w) >= 5 and w[4] not in "2367":
+            if w[2] == "C":
+                ws = 0.0
+            elif w[3] != "9999":
+                ws = int(w[3]) / 10 * 3.6
+        wg = None
+        g = (r.get("OC1") or "").split(",")
+        if len(g) >= 2 and g[0] not in ("9999", "") and g[1] not in "2367":
+            wg = int(g[0]) / 10 * 3.6
+        ph = metar_bits(r.get("REM"))
+        for k in range(1, 8):
+            mw = (r.get(f"MW{k}") or "").split(",")
+            if mw and mw[0].isdigit():
+                ph |= ww_bits(int(mw[0]))
+        rh = None
+        if t is not None and td is not None and td <= t + 0.5:
+            rh = min(100.0, 100 * pow(2.718281828, 17.625 * td / (243.04 + td)) / pow(2.718281828, 17.625 * t / (243.04 + t)))
+        when = dt.datetime.fromisoformat(date[:19]).replace(tzinfo=dt.timezone.utc)
+        obs.append((when, t, td, rh, ws, wg, slp, ph))
+    obs.sort(key=lambda o: o[0])
+    return obs
+
+
+def isd_days(obs):
+    import bisect
+    slp_t = [o[0].timestamp() for o in obs if o[6] is not None]
+    slp_v = [o[6] for o in obs if o[6] is not None]
+    by = {}
+    for o in obs:
+        by.setdefault(o[0].date().isoformat(), []).append(o)
+    out = {}
+    for day, L in by.items():
+        r1 = lambda v: None if v is None else round(v, 1)  # noqa: E731
+        ts = [o[1] for o in L if o[1] is not None]
+        rhs = [o[3] for o in L if o[3] is not None]
+        tds = [o[2] for o in L if o[2] is not None]
+        wss = [o[4] for o in L if o[4] is not None]
+        wgs = [o[5] for o in L if o[5] is not None]
+        slps = [o[6] for o in L if o[6] is not None]
+        his = [heat_index(o[1], o[3]) for o in L if o[1] is not None and o[3] is not None]
+        drop = None
+        for o in L:
+            if o[6] is None:
+                continue
+            target = o[0].timestamp() - 24 * 3600
+            k = bisect.bisect_left(slp_t, target)
+            for kk in (k - 1, k):
+                if 0 <= kk < len(slp_t) and abs(slp_t[kk] - target) <= 5400:
+                    dd = slp_v[kk] - o[6]
+                    drop = dd if drop is None else max(drop, dd)
+        ph = 0
+        for o in L:
+            ph |= o[7]
+        out[day] = [r1(max(wss)) if wss else None, r1(max(wgs)) if wgs else None,
+                    round(min(rhs)) if rhs else None, round(sum(rhs) / len(rhs)) if rhs else None,
+                    r1(max(tds)) if tds else None,
+                    r1(min(slps)) if slps else None, r1(max(slps)) if slps else None,
+                    r1(sum(slps) / len(slps)) if slps else None, r1(drop),
+                    r1(max(his)) if his else None, len(L), ph]
+    return out
+
+
+isd_path = os.path.join(dest, "isd_daily.json")
+try:
+    with open(isd_path, encoding="utf-8") as f:
+        isd_state = json.load(f)
+except Exception:  # noqa: BLE001
+    isd_state = {}
+isd_state.setdefault("fetched", {})
+isd_state.setdefault("days", {})
+isd_state["fields"] = ISD_FIELDS
+isd_state["source"] = f"NOAA ISD {ISD_ID} (relevés horaires SYNOP/METAR)"
+now_u = dt.datetime.now(dt.timezone.utc)
+for y in range(1980, now_u.year + 1):
+    f_ = isd_state["fetched"].get(str(y))
+    need = (f_ is None
+            or (y == now_u.year and (now_u - dt.datetime.fromisoformat(f_)).total_seconds() > 6 * 3600)
+            or (y == now_u.year - 1 and f_ < f"{now_u.year}-01-15"))
+    if not need:
+        continue
+    if time.time() - SCRIPT_T0 > 25 * 60:
+        print("ISD : temps écoulé, suite au prochain passage")
+        break
+    try:
+        days_y = isd_days(isd_year(y))
+        for k in [k for k in isd_state["days"] if k.startswith(f"{y}-")]:
+            del isd_state["days"][k]
+        isd_state["days"].update(days_y)
+        isd_state["fetched"][str(y)] = now_u.isoformat()
+        print("ISD", y, len(days_y), "jours")
+    except Exception as e:  # noqa: BLE001
+        print("ISD", y, "erreur", e)
+        if "404" in str(e):
+            isd_state["fetched"][str(y)] = now_u.isoformat()  # pas de fichier cette année-là
+    with open(isd_path, "w", encoding="utf-8") as f:
+        json.dump(isd_state, f, separators=(",", ":"))
+
 # ---------- Anomalie de température Europe (une fois par jour) ----------
 OM_FC = "https://api.open-meteo.com/v1/forecast"
 OM_AR = "https://archive-api.open-meteo.com/v1/archive"

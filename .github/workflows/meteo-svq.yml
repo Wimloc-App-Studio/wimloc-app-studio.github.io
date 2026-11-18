@@ -15,18 +15,19 @@ permissions:
 
 concurrency:
   group: meteo-svq
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
-      - name: Reprendre l'anomalie Europe déjà calculée
+      - name: Reprendre les fichiers déjà calculés (anomalie, NOAA)
         run: |
           mkdir -p /tmp/out
-          git fetch -q --depth=1 origin meteo-data && git show FETCH_HEAD:anom_eu.json > /tmp/out/anom_eu.json || rm -f /tmp/out/anom_eu.json
+          git fetch -q --depth=1 origin meteo-data || exit 0
+          for f in anom_eu.json isd_daily.json; do git show FETCH_HEAD:$f > /tmp/out/$f || rm -f /tmp/out/$f; done
       - name: Récupérer les données (METAR, Meteostat, GHCN, anomalie Europe)
         run: python3 meteo/fetch_svq.py /tmp/out
       - name: Publier sur la branche meteo-data
