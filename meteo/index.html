@@ -930,6 +930,7 @@ async function initObs(){
     const ago = Math.round((Date.now() - t)/60000);
     html += `<div class="card"><h2>Séville Aéroport · LEZL / 08391 · 34 m</h2>
       <div class="mut">Observé à ${t.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Madrid"})} (il y a ${ago < 120 ? ago + " min" : Math.round(ago/60) + " h"})</div>
+      ${ago > 90 ? `<div style="margin-top:6px;padding:6px 8px;border-radius:8px;background:#422006;border:1px solid #b45309;color:#fde68a;font-size:13px">Données en retard : la mise à jour automatique (sur GitHub) n'est pas passée depuis ${Math.round(ago/60)} h. Elle reprend d'elle-même ; recharge la page un peu plus tard.</div>` : ""}
       <div class="now" style="margin:8px 0">
         <div class="big" style="font-size:46px;font-weight:700">${r0(m.temp)}°</div>
         <div class="det" style="font-size:14px;line-height:1.6">${decodeWx(m.wxString) || decodeClouds(m) || ""}<br>${windTxt(m)}</div>

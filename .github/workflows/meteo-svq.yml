@@ -2,7 +2,8 @@ name: Données météo Séville aéroport
 
 on:
   schedule:
-    - cron: "23 * * * *"
+    # GitHub ne garantit pas les horaires : on programme souvent, à des minutes peu chargées
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
