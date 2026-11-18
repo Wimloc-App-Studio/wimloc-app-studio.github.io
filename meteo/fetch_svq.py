@@ -468,6 +468,8 @@ def heat_index(t, rh):
 
 def isd_year(y):
     txt = get_retry(f"https://www.ncei.noaa.gov/data/global-hourly/access/{y}/{ISD_ID}.csv")
+    if y == 2024:
+        print("ISD diag", len(txt), repr(txt[:300]))
     obs = []
     for r in csv.DictReader(io.StringIO(txt)):
         date = r.get("DATE") or ""
@@ -549,6 +551,9 @@ except Exception:  # noqa: BLE001
 isd_state.setdefault("fetched", {})
 isd_state.setdefault("days", {})
 isd_state["fields"] = ISD_FIELDS
+for yk in list(isd_state["fetched"]):
+    if not any(k.startswith(yk + "-") for k in isd_state["days"]):
+        del isd_state["fetched"][yk]
 isd_state["source"] = f"NOAA ISD {ISD_ID} (relevés horaires SYNOP/METAR)"
 now_u = dt.datetime.now(dt.timezone.utc)
 for y in range(1980, now_u.year + 1):
@@ -563,6 +568,9 @@ for y in range(1980, now_u.year + 1):
         break
     try:
         days_y = isd_days(isd_year(y))
+        if not days_y:
+            print("ISD", y, "aucun jour lu, nouvel essai plus tard")
+            continue
         for k in [k for k in isd_state["days"] if k.startswith(f"{y}-")]:
             del isd_state["days"][k]
         isd_state["days"].update(days_y)
