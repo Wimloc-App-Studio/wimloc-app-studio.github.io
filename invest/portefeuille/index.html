@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wimloc Invest · Mon portefeuille fictif</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="../../images/favicon-32.png">
+<link rel="apple-touch-icon" href="../../images/apple-touch-icon.png">
+<meta name="theme-color" content="#57312a">
+<link rel="stylesheet" href="../../style.css">
+<style>
+  :root{--hausse:#2c7a4b;--baisse:#b3361e;--s1:#2f7fb8;--s2:#c0622f;--s3:#7a5bb0;--s4:#9a7a10;--grille:#ecdfcb}
+  @media (prefers-color-scheme:dark){:root{--hausse:#86d6a4;--baisse:#ff9f8c;--s1:#3d95d6;--s2:#d2763f;--s3:#9a7fd0;--s4:#a8881f;--grille:#4a2f28}}
+  .marque small{font-family:var(--texte);font-weight:600;font-size:.8rem;color:var(--ciel-fonce);margin-left:2px}
+  nav a[aria-current]{color:var(--ciel-fonce)}
+  .ouverture.inv{padding-block:32px 24px}
+  .ouverture.inv .col{display:flex;flex-direction:column;align-items:stretch;gap:12px;grid-template-columns:none}
+  .bloc{padding-block:32px;border-top:1px solid var(--trait)}
+  .bloc .col{display:flex;flex-direction:column;gap:16px}
+  .bloc h3{font-size:1.05rem;color:var(--brun-doux)}
+  .maj,.note{font-size:.85rem;color:var(--brun-doux)}
+  .chiffres{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .chiffre{background:var(--carte);border:1px solid var(--trait);border-radius:20px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .chiffre .lib{font-size:.85rem;color:var(--brun-doux);font-weight:600}
+  .chiffre .val{font-family:var(--rond);font-weight:700;font-size:1.55rem;font-variant-numeric:tabular-nums;line-height:1.2}
+  .h{color:var(--hausse)}.b{color:var(--baisse)}
+  .carte{background:var(--carte);border:1px solid var(--trait);border-radius:20px;padding:16px}
+  .outils{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+  .pilules{display:flex;gap:4px;flex-wrap:wrap;font-family:var(--rond);font-weight:600;font-size:.88rem}
+  .pilules button{font:inherit;color:var(--brun);background:transparent;border:1px solid var(--trait);border-radius:999px;padding:4px 12px;cursor:pointer}
+  .pilules button[aria-pressed="true"]{background:var(--brun);color:var(--creme);border-color:var(--brun)}
+  .graph{position:relative;width:100%}
+  .graph svg{display:block;width:100%;overflow:visible}
+  .graph text{font:12px var(--texte);fill:var(--brun-doux)}
+  .graph .axe line{stroke:var(--grille)}
+  .graph .l1{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}
+  .graph .l2,.graph .l3,.graph .l4{fill:none;stroke-width:2;stroke-linejoin:round}
+  .graph .l2{stroke:var(--s2);stroke-dasharray:6 4}.graph .l3{stroke:var(--s3);stroke-dasharray:2 3}.graph .l4{stroke:var(--s4);stroke-dasharray:10 3 2 3}
+  .graph .a1{fill:var(--s1);opacity:.12}
+  .graph .barre{fill:var(--s1)}
+  .graph .barre.passe{fill:var(--s1);opacity:.45}
+  .graph .curseur{stroke:var(--brun-doux);stroke-width:1;stroke-dasharray:3 3}
+  .graph .pt1{fill:var(--s1);stroke:var(--carte);stroke-width:2}.graph .pt2{fill:var(--s2);stroke:var(--carte);stroke-width:2}.graph .pt3{fill:var(--s3);stroke:var(--carte);stroke-width:2}.graph .pt4{fill:var(--s4);stroke:var(--carte);stroke-width:2}
+  .bulle{position:absolute;pointer-events:none;background:var(--brun);color:var(--creme);font-size:.8rem;padding:6px 10px;border-radius:10px;white-space:nowrap;font-variant-numeric:tabular-nums;z-index:3;line-height:1.45;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+  .bulle i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+  .legende{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--brun-doux)}
+  .legende span::before{content:"";display:inline-block;width:16px;height:3px;border-radius:2px;background:var(--s1);vertical-align:middle;margin-right:6px}
+  .legende span.s2::before{background:repeating-linear-gradient(90deg,var(--s2) 0 6px,transparent 6px 9px)}
+  .legende span.s3::before{background:repeating-linear-gradient(90deg,var(--s3) 0 2px,transparent 2px 5px)}
+  .legende span.s4::before{background:repeating-linear-gradient(90deg,var(--s4) 0 9px,transparent 9px 11px,var(--s4) 11px 13px,transparent 13px 15px)}
+  .defile{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--trait);border-radius:16px;background:var(--carte)}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.92rem}
+  th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--trait);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:0}
+  th{font-family:var(--rond);font-size:.8rem;color:var(--brun-doux);font-weight:700;background:var(--carte);position:sticky;top:0}
+  th[data-tri]{cursor:pointer;user-select:none}
+  th[data-tri]:hover{color:var(--ciel-fonce)}
+  th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--carte);z-index:1}
+  td small{display:block;color:var(--brun-doux);font-size:.78rem}
+  tfoot td{font-weight:700;border-top:2px solid var(--trait);border-bottom:0}
+  .repart{display:flex;flex-direction:column;gap:7px}
+  .repart .rang{display:grid;grid-template-columns:150px minmax(0,1fr) 120px;gap:10px;align-items:center;font-size:.92rem}
+  .repart .piste{height:14px}
+  .repart .rempli{height:100%;background:var(--s1);border-radius:0 4px 4px 0;min-width:2px}
+  .repart .v{text-align:right;font-variant-numeric:tabular-nums}
+  .etat-div{font-family:var(--rond);font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--trait);color:var(--brun-doux)}
+  .etat-div.annonce{background:var(--ciel);border-color:var(--ciel);color:#1e3b52}
+  form.saisie{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end}
+  form.saisie label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:600;color:var(--brun-doux)}
+  input,select{font:inherit;font-size:1rem;color:var(--brun);background:var(--creme);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-width:0;width:100%}
+  input:focus,select:focus{outline:3px solid var(--ciel);outline-offset:1px}
+  .bouton{font:inherit;font-family:var(--rond);font-weight:700;background:var(--brun);color:var(--creme);border:0;border-radius:999px;padding:10px 18px;cursor:pointer}
+  .bouton.doux{background:transparent;color:var(--brun);border:1px solid var(--trait)}
+  .bouton.mini{padding:3px 10px;font-size:.8rem}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .message{font-weight:600}
+  .message.err{color:var(--baisse)}.message.ok{color:var(--hausse)}
+  .nouveau{display:none;grid-column:1/-1;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:12px;border:1px dashed var(--brun-doux);border-radius:14px}
+  .nouveau.vu{display:grid}
+  details{border:1px solid var(--trait);border-radius:16px;padding:12px 16px;background:var(--carte)}
+  details summary{cursor:pointer;font-family:var(--rond);font-weight:700}
+  details[open] summary{margin-bottom:10px}
+  .avert{font-size:.88rem;color:var(--brun-doux)}
+  .taux-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .taux-grille label{font-size:.82rem;display:flex;flex-direction:column;gap:3px}
+  #tab-div,#tab-div-passe,#tab-mvt{font-size:.86rem}
+  #tab-div th,#tab-div td,#tab-div-passe th,#tab-div-passe td{padding:8px 7px}
+  .plus{align-self:flex-start}
+  #tab-mvt th:nth-child(2),#tab-mvt td:nth-child(2){text-align:left}
+  @media (max-width:640px){
+    .cartes thead{display:none}
+    .cartes,.cartes tbody,.cartes tfoot{display:block}
+    .cartes tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;padding:12px 14px;border-bottom:1px solid var(--trait)}
+    .cartes tbody tr:last-child{border-bottom:0}
+    .cartes td,.cartes tfoot td{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:0;border:0;text-align:left;white-space:normal;position:static;background:none;font-size:.95rem}
+    .cartes td::before{content:attr(data-l);color:var(--brun-doux);font-size:.74rem;font-weight:600}
+    .cartes td:first-child{grid-column:1/-1}
+    .cartes td:first-child::before{content:none}
+    .cartes td:empty{display:none}
+    .cartes td>div{text-align:left}
+    .cartes tfoot tr{border-top:2px solid var(--trait)}
+  }
+  @media (max-width:560px){.repart .v small{display:none}.repart .rang{grid-template-columns:96px minmax(0,1fr) 96px}.chiffre .val{font-size:1.25rem}.chiffres{grid-template-columns:repeat(2,minmax(0,1fr))}th,td{padding:8px}}
+</style>
+</head>
+<body>
+<header class="haut bande"><div class="col">
+  <a class="marque" href="../"><img src="../../images/marque_claire.png" alt="">Wimloc Invest<small>par Wimloc App Studio</small></a>
+  <nav><a href="../">Marchés</a><a href="./" aria-current="page">Portefeuille fictif</a></nav>
+</div></header>
+
+<main>
+<section class="ouverture inv bande"><div class="col">
+  <p class="etiquette">Suivi de portefeuille</p>
+  <h1>Mon portefeuille fictif<span class="point" aria-hidden="true"></span></h1>
+  <p class="maj" id="maj">Chargement des cours…</p>
+  <div class="chiffres" id="chiffres"></div>
+</div></section>
+
+<section class="bloc bande" id="evolution"><div class="col">
+  <h2>Évolution</h2>
+  <p>Reconstituée à partir des positions au 12 novembre 2026 et de l'historique des achats et ventes depuis le 15 décembre 2025, avec les cours de clôture et les taux de change BCE de chaque jour.</p>
+  <div class="carte">
+    <div class="outils">
+      <div class="pilules" role="group" aria-label="Affichage" id="mode-evo"><button type="button" data-v="valeur" aria-pressed="true">Valeur en €</button><button type="button" data-v="perf" aria-pressed="false">Comparer aux indices</button></div>
+      <div class="pilules" role="group" aria-label="Période" id="periode-evo"><button type="button" data-v="1" aria-pressed="false">1 mois</button><button type="button" data-v="3" aria-pressed="false">3 mois</button><button type="button" data-v="6" aria-pressed="false">6 mois</button><button type="button" data-v="ytd" aria-pressed="false">2026</button><button type="button" data-v="tout" aria-pressed="true">Tout</button></div>
+    </div>
+    <div class="legende" id="legende-evo"></div>
+    <div class="graph" id="graph-evo"></div>
+  </div>
+  <h3>Performances</h3>
+  <div class="defile"><table id="tab-perf" class="cartes"></table></div>
+  <p class="note">Performance « pondérée par le temps » : l'argent ajouté ou retiré par les achats et les ventes ne la fausse pas, elle mesure ce qu'a rapporté chaque euro investi, y compris sur les titres vendus depuis (Fortinet, Medtronic…). Dividendes non inclus, comme pour les indices (indices de prix). Le S&P 500 et le Nasdaq sont convertis en euros au taux BCE de chaque jour, pour mesurer ce qu'aurait rapporté un euro placé sur ces indices, effet du dollar compris. Le calcul « lignes actuelles seulement » suppose que tu détenais tes titres d'aujourd'hui dès le début de la période : il ignore donc les gains déjà encaissés lors des ventes.</p>
+</div></section>
+
+<section class="bloc bande" id="positions"><div class="col">
+  <h2>Positions</h2>
+  <div class="defile"><table id="tab-pos" class="cartes"></table></div>
+  <p class="note">Prix de revient : pour les lignes détenues avant le 15/12/2025 (début de l'historique), c'est la valeur au 12/12/2025 qui sert de point de départ. Tu peux saisir ton vrai prix de revient dans « Réglages ». Novo Nordisk est suivie avec le cours de son ADR à New York (1 ADR = 1 action), converti en euros.</p>
+  <div class="carte">
+    <div class="outils"><h3>Répartition</h3><div class="pilules" role="group" aria-label="Répartition" id="mode-rep"><button type="button" data-v="secteur" aria-pressed="true">Secteur</button><button type="button" data-v="zone" aria-pressed="false">Zone</button><button type="button" data-v="dev" aria-pressed="false">Devise</button></div></div>
+    <div class="repart" id="repart" style="margin-top:12px"></div>
+  </div>
+</div></section>
+
+<section class="bloc bande" id="dividendes"><div class="col">
+  <h2>Calendrier des dividendes</h2>
+  <p>Ce que tu touches vraiment : retenue du pays d'origine, puis retenue espagnole de 19 % sur le reste, puis frais de change pour les dividendes en devises. La colonne « Récupérable » est la part de la retenue étrangère que tu peux déduire dans ta déclaration d'IRPF (déduction pour double imposition internationale).</p>
+  <div class="chiffres" id="chiffres-div"></div>
+  <div class="carte">
+    <div class="outils"><h3>Net perçu par mois</h3><div class="legende"><span>À venir</span><span style="opacity:.6">Déjà versé (2026)</span></div></div>
+    <div class="graph" id="graph-div"></div>
+  </div>
+  <h3>Prochains versements</h3>
+  <div class="defile"><table id="tab-div" class="cartes"></table></div>
+  <button class="bouton doux plus" type="button" id="btn-div-tout"></button>
+  <details><summary>Dividendes déjà versés depuis décembre 2025</summary><div class="defile"><table id="tab-div-passe" class="cartes"></table></div></details>
+  <p class="note">Dates et montants estimés à partir du dividende annuel actuel et de la dernière date de détachement connue (CNBC), sauf mention « annoncé ». Vérifie les montants exacts sur tes avis de dividende.</p>
+</div></section>
+
+<section class="bloc bande" id="mouvements"><div class="col">
+  <h2>Déclarer un achat ou une vente</h2>
+  <div class="carte">
+  <form class="saisie" id="form-mvt" autocomplete="off">
+    <label>Opération<select name="type"><option value="achat">Achat</option><option value="vente">Vente</option></select></label>
+    <label>Date<input type="date" name="date" required></label>
+    <label>Titre<select name="sym" id="sel-titre"></select></label>
+    <div class="nouveau" id="bloc-nouveau">
+      <label>Nom du titre<input name="nnom" placeholder="ex. LVMH"></label>
+      <label>Symbole CNBC<input name="nsym" placeholder="ex. MC-FR, AAPL"></label>
+      <label>Devise<select name="ndev"><option>EUR</option><option>USD</option><option>GBP</option><option>DKK</option><option>CHF</option><option>CAD</option></select></label>
+      <label>Pays de la société<select name="npays"><option value="FR">France</option><option value="ES">Espagne</option><option value="US">États-Unis</option><option value="DE">Allemagne</option><option value="NL">Pays-Bas</option><option value="GB">Royaume-Uni</option><option value="IE">Irlande</option><option value="CA">Canada</option><option value="DK">Danemark</option><option value="CH">Suisse</option><option value="JP">Japon</option></select></label>
+      <label>Secteur<input name="nsecteur" placeholder="ex. Luxe"></label>
+    </div>
+    <label>Quantité<input type="number" name="qte" min="0" step="any" required inputmode="decimal"></label>
+    <label><span>Cours unitaire <span id="dev-prix">(devise du titre)</span></span><input type="number" name="prix" min="0" step="any" required inputmode="decimal"></label>
+    <label>Montant total en €, frais compris<input type="number" name="montant" min="0" step="0.01" inputmode="decimal" placeholder="calculé si vide"></label>
+    <div class="actions"><button class="bouton" type="submit">Enregistrer</button></div>
+    <p class="message" id="msg-mvt" style="grid-column:1/-1"></p>
+  </form>
+  </div>
+  <p class="note">Tes saisies sont enregistrées dans ce navigateur. Pour les retrouver sur un autre appareil, ou les rendre permanentes sur le site, utilise les boutons ci-dessous.</p>
+  <div class="actions">
+    <button class="bouton doux" type="button" id="btn-export">Télécharger ma sauvegarde</button>
+    <label class="bouton doux" style="display:inline-block">Importer une sauvegarde<input type="file" id="btn-import" accept=".json,application/json" hidden></label>
+    <button class="bouton doux" type="button" id="btn-github">Fichier complet pour GitHub</button>
+  </div>
+  <h3>Historique des mouvements</h3>
+  <div class="defile"><table id="tab-mvt" class="cartes"></table></div>
+
+  <details id="reglages"><summary>Réglages : prix de revient et retenues sur dividendes</summary>
+    <p class="note">Taux appliqués par défaut pour un résident fiscal espagnol. Modifie-les si tes avis de dividende montrent un autre taux.</p>
+    <div class="taux-grille" id="grille-taux"></div>
+    <h3 style="margin-top:14px">Prix de revient (€ par action)</h3>
+    <p class="note">Laisse vide pour garder le calcul automatique.</p>
+    <div class="taux-grille" id="grille-pru"></div>
+    <div class="actions" style="margin-top:12px"><button class="bouton" type="button" id="btn-reglages">Enregistrer les réglages</button><button class="bouton doux" type="button" id="btn-raz">Revenir aux valeurs par défaut</button></div>
+  </details>
+</div></section>
+</main>
+
+<footer class="pied bande"><div class="col">
+  <p class="avert">Portefeuille fictif présenté à titre indicatif, à partir de cours éventuellement différés. Ce n'est pas un conseil en investissement ou fiscal.</p>
+  <p>Sources des cours : CNBC ; taux de change : Banque centrale européenne.</p>
+  <div class="ligne"><a href="../">Wimloc Invest · Marchés</a><a href="../../fr/">Wimloc App Studio</a><a href="../../legal.html#fr">Mentions légales</a></div>
+  <p>© 2026 Wimloc App Studio. Ce site ne dépose aucun cookie et ne mesure pas les visites.</p>
+</div></footer>
+
+<script>
+"use strict";
+const RAW = "https://raw.githubusercontent.com/Wimloc-App-Studio/wimloc-app-studio.github.io/invest-data/";
+const CLE = "wimloc-invest-portefeuille-v1";
+const PAYS = {US:"États-Unis",FR:"France",GB:"Royaume-Uni",AU:"Australie",IE:"Irlande",CA:"Canada",DK:"Danemark",JP:"Japon",KY:"Îles Caïmans",BM:"Bermudes",NL:"Pays-Bas",DE:"Allemagne",ES:"Espagne",CH:"Suisse"};
+let PF, PX, LOCAL, M = {};           // données de base, cours, saisies locales, modèle calculé
+const INDICES = [{k:"stoxx", sym:".STOXX50E", nom:"Euro Stoxx 50", dev:"EUR"}, {k:"spx", sym:".SPX", nom:"S&P 500", dev:"USD"}, {k:"ndq", sym:".IXIC", nom:"Nasdaq", dev:"USD"}];
+const ui = {evoMode:"valeur", evoPer:"tout", rep:"secteur", tri:["valeur",-1]};
+
+/* ---------- utilitaires ---------- */
+const $ = s => document.querySelector(s);
+const nf = (v,d=2) => v==null||!isFinite(v) ? "—" : v.toLocaleString("fr-FR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const eur = (v,d=0) => v==null||!isFinite(v) ? "—" : nf(v,d)+" €";
+const sgn = (v,d=2,u=" %") => v==null||!isFinite(v) ? "—" : (v>0?"+":"")+nf(v,d)+u;
+const cls = v => v>0 ? "h" : v<0 ? "b" : "";
+const esc = s => String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const jour = d => new Date(d+"T12:00:00Z");
+const iso = t => t.toISOString().slice(0,10);
+const ajJ = (d,n) => { const t = jour(d); t.setUTCDate(t.getUTCDate()+n); return iso(t); };
+const ajM = (d,n) => { const t = jour(d), j = t.getUTCDate(); t.setUTCDate(1); t.setUTCMonth(t.getUTCMonth()+n); const fin = new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth()+1,0)).getUTCDate(); t.setUTCDate(Math.min(j,fin)); return iso(t); };
+const fdate = (d,o={day:"numeric",month:"short",year:"numeric"}) => jour(d).toLocaleDateString("fr-FR",o);
+const AUJ = iso(new Date());
+
+function dernier(serie, d){ // dernière valeur à la date d ou avant (recherche dichotomique)
+  if (!serie || !serie.length || serie[0][0] > d) return null;
+  let lo = 0, hi = serie.length-1;
+  while (lo < hi){ const m = (lo+hi+1)>>1; if (serie[m][0] <= d) lo = m; else hi = m-1; }
+  return serie[lo][1];
+}
+
+/* ---------- données ---------- */
+function chargerLocal(){
+  try { LOCAL = JSON.parse(localStorage.getItem(CLE)) || {}; } catch(e){ LOCAL = {}; }
+  LOCAL.mouvements = LOCAL.mouvements || []; LOCAL.titres = LOCAL.titres || {}; LOCAL.pru = LOCAL.pru || {}; LOCAL.fisc = LOCAL.fisc || {};
+}
+function sauverLocal(){ try { localStorage.setItem(CLE, JSON.stringify(LOCAL)); } catch(e){} }
+const titres = () => Object.assign({}, PF.titres, LOCAL.titres);
+const mouvements = () => [...PF.mouvements.map((m,i)=>({...m,id:"h"+i})), ...LOCAL.mouvements].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+const fisc = () => ({espagne: LOCAL.fisc.espagne ?? PF.fiscalite.espagne, change: LOCAL.fisc.change ?? PF.fiscalite.change,
+  origine: Object.assign({}, PF.fiscalite.origine, LOCAL.fisc.origine||{}), plafond: PF.fiscalite.plafond});
+
+function fxA(dev, d){ // unités de devise pour 1 €
+  if (!dev || dev === "EUR") return 1;
+  const f = PX.fx[dev]; if (!f) return null;
+  if (d >= AUJ && f.live) return f.live;
+  return dernier(f.hist, d) ?? f.live;
+}
+function coursA(sym, d){
+  const p = PX.titres[sym];
+  if (p){ if (d >= AUJ && p.last != null) return p.last; const v = dernier(p.hist, d); if (v != null) return v; }
+  // titre sans cotation : dernier prix d'un mouvement
+  const ms = mouvements().filter(m => m.sym === sym && m.date <= d); return ms.length ? ms[ms.length-1].prix : null;
+}
+const devise = sym => (titres()[sym]||{}).dev || (PX.titres[sym]||{}).dev || "EUR";
+const valEur = (sym, q, d) => { const c = coursA(sym,d), f = fxA(devise(sym), d); return c==null||!f ? 0 : q*c/f; };
+
+function positionsA(d){ // quantités en fin de journée d
+  const D0 = PF.depart.date, q = {};
+  PF.depart.positions.forEach(p => q[p.sym] = p.qte);
+  for (const m of mouvements()){
+    const s = m.type === "achat" ? 1 : -1;
+    if (m.date <= D0 && m.date > d) q[m.sym] = (q[m.sym]||0) - s*m.qte;      // on remonte le temps
+    if (m.date > D0 && m.date <= d) q[m.sym] = (q[m.sym]||0) + s*m.qte;      // mouvements saisis après la date de départ
+  }
+  Object.keys(q).forEach(k => { if (Math.abs(q[k]) < 1e-9) delete q[k]; });
+  return q;
+}
+
+/* ---------- calcul du modèle ---------- */
+function calculer(){
+  const mv = mouvements();
+  const DEBUT = ajJ(mv.length ? mv[0].date : PF.depart.date, -3);
+  // jours de bourse : dates de l'Euro Stoxx 50 et d'Alphabet, du début à aujourd'hui
+  const ens = new Set();
+  ["GOOGL",".STOXX50E"].forEach(s => (PX.titres[s]?.hist||[]).forEach(([d]) => { if (d >= DEBUT && d < AUJ) ens.add(d); }));
+  mv.forEach(m => { if (m.date < AUJ) ens.add(m.date); });
+  const dow = jour(AUJ).getUTCDay(); if (dow !== 0 && dow !== 6) ens.add(AUJ);
+  const dates = [...ens].filter(d => { const w = jour(d).getUTCDay(); return w !== 0 && w !== 6; }).sort();
+  const flux = {}; mv.forEach(m => flux[m.date] = (flux[m.date]||0) + (m.type === "achat" ? 1 : -1) * m.montant);
+  const serie = []; let idx = 1, prec = null; const b0 = {};
+  for (const d of dates){
+    const q = positionsA(d); let v = 0;
+    for (const s in q) v += valEur(s, q[s], d);
+    const f = flux[d] || 0;
+    if (prec && prec.v > 0) idx *= (v - f) / prec.v;
+    const bench = {};
+    for (const I of INDICES){ // indices convertis en euros au taux BCE du jour
+      const c = PX.titres[I.sym] ? coursA(I.sym, d) : null, fx = fxA(I.dev, d), e = c && fx ? c/fx : null;
+      if (e && b0[I.k] == null) b0[I.k] = e;
+      bench[I.k] = e && b0[I.k] ? e/b0[I.k] : null;
+    }
+    prec = {d, v, idx, flux:f, bench, q};
+    serie.push(prec);
+  }
+  M.serie = serie; M.debut = dates[0];
+
+  // positions actuelles, prix de revient et plus-values réalisées
+  const T = titres(), q0 = positionsA(M.debut), cout = {}, qte = {}, realise = {};
+  for (const s in q0){ qte[s] = q0[s]; cout[s] = valEur(s, q0[s], M.debut); }
+  M.ventes = {};
+  for (const m of mv){
+    if (m.date < M.debut) continue;
+    const s = m.sym; qte[s] = qte[s]||0; cout[s] = cout[s]||0;
+    if (m.type === "achat"){ qte[s] += m.qte; cout[s] += m.montant; }
+    else { const pru = qte[s] ? cout[s]/qte[s] : 0; const r = m.montant - pru*m.qte; realise[s] = (realise[s]||0) + r; M.ventes[m.id] = r; cout[s] -= pru*m.qte; qte[s] -= m.qte; }
+  }
+  const qa = positionsA(AUJ); const pos = [];
+  let total = 0, veille = 0;
+  for (const s in qa){
+    const t = T[s] || {nom:s}, p = PX.titres[s] || {}, dev = devise(s), f = fxA(dev, AUJ);
+    const cours = coursA(s, AUJ), val = valEur(s, qa[s], AUJ);
+    const prevC = p.prev ?? cours, fPrev = fxA(dev, ajJ(AUJ,-1)) || f;
+    const valPrev = qa[s] * prevC / fPrev;
+    const pru = LOCAL.pru[s] != null ? +LOCAL.pru[s] : (qte[s] ? cout[s]/qte[s] : null);
+    const cr = pru != null ? pru*qa[s] : null;
+    pos.push({sym:s, nom:t.nom||p.nom||s, qte:qa[s], cours, dev, val, varJ: val - valPrev, varJp: valPrev ? (val/valPrev-1)*100 : 0,
+      pru, pv: cr!=null ? val-cr : null, pvp: cr ? (val/cr-1)*100 : null, secteur:t.secteur||"Autre", zone:t.zone||"Autre", pays:t.pays,
+      manuel: !PX.titres[s], vieux: !!p.stale, depart: LOCAL.pru[s]==null && q0[s] > 0});
+    total += val; veille += valPrev;
+  }
+  pos.forEach(p => p.poids = total ? p.val/total*100 : 0);
+  M.pos = pos; M.total = total; M.varJ = total - veille; M.varJp = veille ? (total/veille-1)*100 : 0;
+  M.realise = realise; M.qteHist = qte;
+  M.dividendes = dividendes();
+}
+
+function perf(depuis){ // performance de la date « depuis » (exclue) à aujourd'hui
+  const s = M.serie; if (!s.length) return {p:null,b:{}};
+  let a = null; for (const x of s){ if (x.d <= depuis) a = x; else break; }
+  const z = s[s.length-1]; if (!a) return {p:null,b:{}};
+  const b = {}; INDICES.forEach(I => b[I.k] = a.bench[I.k] && z.bench[I.k] ? (z.bench[I.k]/a.bench[I.k]-1)*100 : null);
+  return {p:(z.idx/a.idx-1)*100, b, gain: z.v - a.v - s.filter(x => x.d > a.d).reduce((t,x)=>t+x.flux,0)};
+}
+
+function perfStatique(depuis){ // positions actuelles valorisées au début et aujourd'hui
+  const q = positionsA(AUJ); let a = 0, z = 0;
+  for (const k in q){ a += valEur(k, q[k], depuis); z += valEur(k, q[k], AUJ); }
+  return a ? (z/a-1)*100 : null;
+}
+
+/* ---------- dividendes ---------- */
+function dividendes(){
+  const T = titres(), F = fisc(), out = [];
+  const fin = ajM(AUJ, 12), debut = M.debut;
+  const syms = new Set([...Object.keys(positionsA(AUJ)), ...mouvements().map(m=>m.sym), ...Object.keys(positionsA(debut))]);
+  for (const s of syms){
+    const t = T[s] || {}, p = PX.titres[s] || {};
+    const freq = t.freq ?? 0; if (!freq || !p.div || !p.ex) continue;
+    const parPaie = p.div / freq, pas = 12 / freq, lag = t.lag ?? 20, dev = devise(s);
+    for (let k = -10; k <= 10; k++){
+      const ex = ajM(p.ex, k*pas), paie = ajJ(ex, lag);
+      if (paie < debut || ex > fin) continue;
+      const q = positionsA(ajJ(ex,-1))[s] || 0; if (q <= 0) continue;
+      const f = fxA(dev, paie < AUJ ? paie : AUJ) || 1;
+      const brut = q * parPaie / f;
+      const tO = (F.origine[t.pays] ?? 0)/100, ret = brut*tO;
+      const fraisC = dev === "EUR" ? 0 : (brut-ret) * F.change/100;
+      const esp = (brut - ret - fraisC) * F.espagne/100;
+      const net = brut - ret - fraisC - esp;
+      const recup = Math.min(ret, brut * (F.plafond[t.pays] ?? 15)/100);
+      out.push({sym:s, nom:t.nom||p.nom||s, ex, paie, q, parPaie, dev, brut, ret, tO:tO*100, fraisC, esp, net, recup,
+        annonce: k === 0 && ex >= AUJ, verse: paie < AUJ});
+    }
+  }
+  return out.sort((a,b)=> a.paie<b.paie?-1:1);
+}
+
+/* ---------- graphiques ---------- */
+function graphLigne(el, pts, opt){ // pts: [{d, y1, y2?}]
+  const W = el.clientWidth || 600, H = Math.max(220, Math.min(340, W*0.5)), g = {l:58, r:12, t:12, b:28};
+  if (pts.length < 2){ el.innerHTML = '<p class="note">Pas assez de données pour tracer la courbe.</p>'; return; }
+  const ys = pts.flatMap(p => [p.y1, p.y2, p.y3, p.y4]).filter(v => v!=null && isFinite(v));
+  let lo = Math.min(...ys), hi = Math.max(...ys); const m = (hi-lo)*0.08 || 1; lo -= m; hi += m;
+  const X = i => g.l + i/(pts.length-1)*(W-g.l-g.r), Y = v => g.t + (hi-v)/(hi-lo)*(H-g.t-g.b);
+  const pas = (() => { const r = (hi-lo)/4, p = Math.pow(10, Math.floor(Math.log10(r))); return [1,2,2.5,5,10].map(k=>k*p).find(k => k >= r); })();
+  let axe = ""; for (let v = Math.ceil(lo/pas)*pas; v <= hi; v += pas) axe += `<line x1="${g.l}" x2="${W-g.r}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${g.l-8}" y="${Y(v)+4}" text-anchor="end">${opt.fy(v)}</text>`;
+  const nx = Math.min(W < 520 ? 3 : 6, pts.length); let ax = "";
+  for (let k = 0; k < nx; k++){ const i = Math.round(k*(pts.length-1)/(nx-1)); ax += `<text x="${X(i)}" y="${H-6}" text-anchor="${k===0?"start":k===nx-1?"end":"middle"}">${fdate(pts[i].d,{day:"numeric",month:"short"})}</text>`; }
+  const ch = k => pts.map((p,i) => p[k]==null ? null : `${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).filter(Boolean).join(" ");
+  const aire = opt.aire ? `<polygon class="a1" points="${X(0)},${H-g.b} ${ch("y1")} ${X(pts.length-1)},${H-g.b}"/>` : "";
+  const l2 = [4,3,2].map(n => pts.some(p => p["y"+n] != null) ? `<polyline class="l${n}" points="${ch("y"+n)}"/>` : "").join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="${esc(opt.titre)}"><g class="axe">${axe}</g>${ax}${aire}${l2}<polyline class="l1" points="${ch("y1")}"/>
+    <line class="curseur" y1="${g.t}" y2="${H-g.b}" visibility="hidden"/><circle class="pt1" r="5" visibility="hidden"/><circle class="pt2" r="5" visibility="hidden"/><circle class="pt3" r="5" visibility="hidden"/><circle class="pt4" r="5" visibility="hidden"/><rect x="${g.l}" y="0" width="${W-g.l-g.r}" height="${H}" fill="transparent" class="zone"/></svg>`;
+  const svg = el.querySelector("svg"), cur = svg.querySelector(".curseur"), p1 = svg.querySelector(".pt1"), pk = [2,3,4].map(n => svg.querySelector(".pt"+n));
+  let bulle = null;
+  const montrer = ev => {
+    const r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(pts.length-1, Math.round((x-g.l)/(W-g.l-g.r)*(pts.length-1)))), p = pts[i];
+    cur.setAttribute("x1", X(i)); cur.setAttribute("x2", X(i)); cur.setAttribute("visibility","visible");
+    p1.setAttribute("cx", X(i)); p1.setAttribute("cy", Y(p.y1)); p1.setAttribute("visibility","visible");
+    pk.forEach((c,j) => { const v = p["y"+(j+2)]; if (v != null){ c.setAttribute("cx", X(i)); c.setAttribute("cy", Y(v)); c.setAttribute("visibility","visible"); } else c.setAttribute("visibility","hidden"); });
+    if (!bulle){ bulle = document.createElement("div"); bulle.className = "bulle"; el.appendChild(bulle); }
+    bulle.innerHTML = opt.bulle(p);
+    const px = X(i) * r.width / W, bw = bulle.offsetWidth;
+    bulle.style.left = Math.max(0, Math.min(r.width - bw, px + (px > r.width/2 ? -bw-12 : 12))) + "px"; bulle.style.top = "8px";
+  };
+  const cacher = () => { [cur,p1,...pk].forEach(e => e.setAttribute("visibility","hidden")); if (bulle){ bulle.remove(); bulle = null; } };
+  const z = svg.querySelector(".zone");
+  z.addEventListener("pointermove", montrer); z.addEventListener("pointerdown", montrer); z.addEventListener("pointerleave", cacher);
+}
+
+function graphBarres(el, items){ // items: [{lib, v, passe, detail}]
+  const W = el.clientWidth || 600, H = 200, g = {l:52, r:6, t:10, b:26};
+  const max = Math.max(...items.map(i => i.v), 1);
+  const pas = (() => { const r = max/4, p = Math.pow(10, Math.floor(Math.log10(r))); return [1,2,2.5,5,10].map(k=>k*p).find(k => k >= r); })();
+  const top = Math.ceil(max/pas)*pas, Y = v => g.t + (1 - v/top)*(H-g.t-g.b);
+  const bw = (W-g.l-g.r)/items.length;
+  let axe = ""; for (let v = 0; v <= top; v += pas) axe += `<line x1="${g.l}" x2="${W-g.r}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${g.l-8}" y="${Y(v)+4}" text-anchor="end">${nf(v,0)} €</text>`;
+  let bars = "", labs = "";
+  items.forEach((it,i) => { const x = g.l + i*bw + 2, w = Math.max(2, bw-4), h = Y(0)-Y(it.v);
+    if (it.v > 0) bars += `<path class="barre${it.passe?" passe":""}" d="M${x},${Y(0)} v${-Math.max(0,h-4)} q0,-4 4,-4 h${w-8} q4,0 4,4 v${Math.max(0,h-4)} z" data-i="${i}"/>`;
+    bars += `<rect x="${g.l+i*bw}" y="0" width="${bw}" height="${H}" fill="transparent" data-i="${i}"/>`;
+    if (i % Math.max(1, Math.ceil(46/bw)) === 0) labs += `<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${it.lib}</text>`; });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Dividendes nets par mois"><g class="axe">${axe}</g>${bars}${labs}</svg>`;
+  let bulle = null;
+  el.querySelectorAll("[data-i]").forEach(r => {
+    r.addEventListener("pointerenter", () => { const it = items[+r.dataset.i]; if (!bulle){ bulle = document.createElement("div"); bulle.className = "bulle"; el.appendChild(bulle); }
+      bulle.innerHTML = it.detail; const sr = el.getBoundingClientRect(), rr = r.getBoundingClientRect(); const bw2 = bulle.offsetWidth;
+      bulle.style.left = Math.max(0, Math.min(sr.width-bw2, rr.left - sr.left + rr.width/2 - bw2/2)) + "px"; bulle.style.top = "0px"; });
+    r.addEventListener("pointerleave", () => { if (bulle){ bulle.remove(); bulle = null; } });
+  });
+}
+
+/* ---------- affichage ---------- */
+function afficherChiffres(){
+  const ytd = perf("2025-12-31"), pv = M.pos.reduce((t,p)=>t+(p.pv||0),0);
+  const div12 = M.dividendes.filter(d => !d.verse).reduce((t,d)=>t+d.net,0);
+  const tuile = (lib, val, sous, c="") => `<div class="chiffre"><span class="lib">${lib}</span><span class="val ${c}">${val}</span><span class="note">${sous}</span></div>`;
+  $("#chiffres").innerHTML =
+    tuile("Valeur du portefeuille", eur(M.total), `${M.pos.length} lignes`) +
+    tuile("Aujourd'hui", sgn(M.varJ,0," €"), sgn(M.varJp), cls(M.varJ)) +
+    tuile("Performance 2026", sgn(ytd.p), INDICES.map(I => `${I.nom.replace(/ /g,"&nbsp;")}&nbsp;: ${sgn(ytd.b[I.k]).replace(" ","&nbsp;")}`).join("<br>"), cls(ytd.p)) +
+    tuile("Plus-values latentes", sgn(pv,0," €"), "par rapport au prix de revient", cls(pv)) +
+    tuile("Dividendes nets à venir", eur(div12), "sur les 12 prochains mois");
+  const t = PX.updated ? new Date(PX.updated) : null;
+  $("#maj").textContent = t ? `Cours mis à jour le ${t.toLocaleDateString("fr-FR",{day:"numeric",month:"long"})} à ${t.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} (actualisés toutes les 30 minutes en semaine, éventuellement différés).` : "";
+}
+
+function afficherEvolution(){
+  let s = M.serie; const z = s[s.length-1]?.d || AUJ;
+  const dep = ui.evoPer === "tout" ? null : ui.evoPer === "ytd" ? "2025-12-31" : ajM(z, -(+ui.evoPer));
+  if (dep){ let k = 0; s.forEach((x,i) => { if (x.d <= dep) k = i; }); s = s.slice(k); }
+  if (ui.evoMode === "valeur"){
+    $("#legende-evo").innerHTML = "";
+    graphLigne($("#graph-evo"), s.map(x => ({d:x.d, y1:x.v, flux:x.flux})), {titre:"Valeur du portefeuille en euros", aire:true,
+      fy: v => v >= 1000 ? nf(v/1000,0)+" k€" : nf(v,0)+" €",
+      bulle: p => `<b>${fdate(p.d)}</b><br>${eur(p.y1)}${p.flux ? `<br>${p.flux>0?"Achat":"Vente"} : ${eur(Math.abs(p.flux))}` : ""}`});
+  } else {
+    const a = s[0];
+    $("#legende-evo").innerHTML = '<span>Mon portefeuille</span>' + INDICES.map((I,j) => `<span class="s${j+2}">${I.nom}</span>`).join("") + '<em class="note">indices convertis en euros</em>';
+    graphLigne($("#graph-evo"), s.map(x => { const o = {d:x.d, y1:x.idx/a.idx*100}; INDICES.forEach((I,j) => o["y"+(j+2)] = x.bench[I.k] && a.bench[I.k] ? x.bench[I.k]/a.bench[I.k]*100 : null); return o; }), {titre:"Performance comparée du portefeuille, de l'Euro Stoxx 50, du S&P 500 et du Nasdaq, base 100",
+      fy: v => nf(v,0),
+      bulle: p => `<b>${fdate(p.d)}</b><br><i style="background:var(--s1)"></i>Portefeuille ${sgn(p.y1-100)}` + INDICES.map((I,j) => p["y"+(j+2)]!=null ? `<br><i style="background:var(--s${j+2})"></i>${I.nom} ${sgn(p["y"+(j+2)]-100)}` : "").join("")});
+  }
+  const z0 = M.serie[M.serie.length-1].d;
+  const lignes = [["1 mois", ajM(z0,-1)], ["3 mois", ajM(z0,-3)], ["6 mois", ajM(z0,-6)], ["Depuis le 1er janvier 2026", "2025-12-31"], ["Depuis le 12/12/2025", M.debut]];
+  $("#tab-perf").innerHTML = `<thead><tr><th>Période</th><th>Mon portefeuille</th><th>Gain en €</th>${INDICES.map(I=>`<th>${I.nom}</th>`).join("")}</tr></thead><tbody>` +
+    lignes.map(([l,d]) => { const r = perf(d); return `<tr><td><b>${l}</b></td><td data-l="Mon portefeuille" class="${cls(r.p)}"><b>${sgn(r.p)}</b></td><td data-l="Gain en €" class="${cls(r.gain)}">${sgn(r.gain,0," €")}</td>${INDICES.map(I => { const v = r.b[I.k]; return `<td data-l="${I.nom}">${sgn(v)}${v!=null&&r.p!=null?`<small class="${cls(r.p-v)}">${r.p>=v?"devant":"derrière"} de ${nf(Math.abs(r.p-v),1)} pt</small>`:""}</td>`; }).join("")}</tr>`; }).join("") +
+    (() => { const r = perfStatique("2025-12-31"); return `<tr><td>2026, lignes actuelles seulement<small>sans tenir compte des achats et ventes</small></td><td data-l="Mon portefeuille" class="${cls(r)}">${sgn(r)}</td><td></td>${INDICES.map(I=>`<td data-l="${I.nom}">${sgn(perf("2025-12-31").b[I.k])}</td>`).join("")}</tr>`; })() + `</tbody>`;
+}
+
+function afficherPositions(){
+  const [k, sens] = ui.tri;
+  const P = [...M.pos].sort((a,b) => { const x = a[k], y = b[k]; return (typeof x === "string" ? x.localeCompare(y) : (x??-1e18)-(y??-1e18)) * sens; });
+  const col = [["nom","Titre"],["qte","Quantité"],["cours","Cours"],["val","Valeur"],["poids","Poids"],["varJp","Jour"],["pru","Prix de revient"],["pv","Plus-value"],["pvp","+/- %"]];
+  const fl = ui.tri[1] > 0 ? " ▲" : " ▼";
+  $("#tab-pos").innerHTML = `<thead><tr>${col.map(([c,l]) => `<th data-tri="${c}" aria-sort="${k===c?(sens>0?"ascending":"descending"):"none"}">${l}${k===c?fl:""}</th>`).join("")}</tr></thead><tbody>` +
+    P.map(p => `<tr><td><b>${esc(p.nom)}</b><small>${esc(p.sym)} · ${esc(p.secteur)}${p.manuel?" · cours saisi":""}${p.vieux?" · cours non actualisé":""}</small></td>
+      <td data-l="Quantité">${nf(p.qte, p.qte%1?2:0)}</td><td data-l="Cours">${nf(p.cours, p.cours<10?3:2)} ${p.dev==="EUR"?"€":p.dev==="USD"?"$":p.dev==="GBP"?"£":p.dev}</td>
+      <td data-l="Valeur"><b>${eur(p.val)}</b></td><td data-l="Poids">${nf(p.poids,1)} %</td><td data-l="Aujourd'hui" class="${cls(p.varJp)}"><div>${sgn(p.varJp)}<small>${sgn(p.varJ,0," €")}</small></div></td>
+      <td data-l="Prix de revient"><div>${p.pru!=null?eur(p.pru,2):"—"}${p.depart?"<small>valeur au 12/12/2025</small>":""}</div></td><td data-l="Plus-value" class="${cls(p.pv)}">${sgn(p.pv,0," €")}</td><td data-l="Plus-value %" class="${cls(p.pvp)}">${sgn(p.pvp)}</td></tr>`).join("") +
+    `</tbody><tfoot><tr><td>Total</td><td></td><td></td><td data-l="Valeur">${eur(M.total)}</td><td></td><td data-l="Aujourd'hui" class="${cls(M.varJ)}"><div>${sgn(M.varJp)}<small>${sgn(M.varJ,0," €")}</small></div></td><td></td><td data-l="Plus-value" class="${cls(M.pos.reduce((t,p)=>t+(p.pv||0),0))}">${sgn(M.pos.reduce((t,p)=>t+(p.pv||0),0),0," €")}</td><td></td></tr></tfoot>`;
+  $("#tab-pos").querySelectorAll("th[data-tri]").forEach(th => th.addEventListener("click", () => {
+    const c = th.dataset.tri; ui.tri = [c, ui.tri[0] === c ? -ui.tri[1] : (c === "nom" ? 1 : -1)]; afficherPositions(); }));
+  // répartition
+  const g = {}; M.pos.forEach(p => { const c = ui.rep === "dev" ? ({EUR:"Euro",USD:"Dollar US",GBP:"Livre sterling"}[p.dev]||p.dev) : p[ui.rep]; g[c] = (g[c]||0) + p.val; });
+  const L = Object.entries(g).sort((a,b) => b[1]-a[1]), mx = L.length ? L[0][1] : 1;
+  $("#repart").innerHTML = L.map(([c,v]) => `<div class="rang"><span>${esc(c)}</span><div class="piste"><div class="rempli" style="width:${v/mx*100}%"></div></div><span class="v">${nf(v/M.total*100,1)} %<small> · ${eur(v)}</small></span></div>`).join("");
+}
+
+function afficherDividendes(){
+  const D = M.dividendes, avenir = D.filter(d => !d.verse), passe = D.filter(d => d.verse);
+  const som = (L,k) => L.reduce((t,d)=>t+d[k],0);
+  const tuile = (lib, val, sous) => `<div class="chiffre"><span class="lib">${lib}</span><span class="val">${val}</span><span class="note">${sous}</span></div>`;
+  const an = passe.filter(d => d.paie >= "2026-01-01");
+  $("#chiffres-div").innerHTML = tuile("Brut sur 12 mois", eur(som(avenir,"brut")), `rendement ${nf(som(avenir,"brut")/M.total*100,2)} %`) +
+    tuile("Net sur ton compte", eur(som(avenir,"net")), `après ${eur(som(avenir,"ret")+som(avenir,"esp")+som(avenir,"fraisC"))} de retenues et frais`) +
+    tuile("Récupérable à l'IRPF", eur(som(avenir,"recup")), "retenues étrangères déductibles") +
+    tuile("Déjà versé en 2026", eur(som(an,"net")), `net estimé · brut ${eur(som(an,"brut"))}`);
+  // barres par mois : de janvier 2026 à +12 mois
+  const mois = []; let m = "2026-01-01"; const fin = ajM(AUJ.slice(0,7)+"-01", 12);
+  while (m <= fin){ mois.push(m.slice(0,7)); m = ajM(m,1); }
+  graphBarres($("#graph-div"), mois.map(k => { const L = D.filter(d => d.paie.slice(0,7) === k), v = som(L,"net");
+    return {lib: jour(k+"-15").toLocaleDateString("fr-FR",{month:"short"}).replace(".","") + (k.endsWith("-01")?" "+k.slice(2,4):""), v, passe: k < AUJ.slice(0,7) || L.every(d=>d.verse) && L.length,
+      detail: `<b>${jour(k+"-15").toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</b><br>Net ${eur(v,2)}${L.length?"<br>"+L.map(d=>`${esc(d.nom)} : ${eur(d.net,2)}`).join("<br>"):""}`}; }));
+  const tete = `<thead><tr><th>Titre</th><th>Détachement</th><th>Paiement</th><th>Brut</th><th>Retenues et frais</th><th>Net</th><th>Récupérable</th></tr></thead>`;
+  const ligne = d => `<tr><td><b>${esc(d.nom)}</b><small>${nf(d.q,0)} actions × ${nf(d.parPaie, d.parPaie<1?4:2)} ${d.dev}</small></td>
+    <td data-l="Détachement"><span>${fdate(d.ex,{day:"numeric",month:"short"})}${d.annonce?' <span class="etat-div annonce">annoncé</span>':""}</span></td><td data-l="Paiement">${fdate(d.paie,{day:"numeric",month:"short",year:"2-digit"})}</td>
+    <td data-l="Brut">${eur(d.brut,2)}</td><td data-l="Retenues et frais"><div>−${eur(d.ret+d.fraisC+d.esp,2)}<small>${PAYS[titres()[d.sym]?.pays]||"origine"} ${d.tO.toLocaleString("fr-FR",{maximumFractionDigits:3})} % : ${eur(d.ret,2)}</small><small>Espagne ${nf(fisc().espagne,0)} % : ${eur(d.esp,2)}${d.fraisC?` · change : ${eur(d.fraisC,2)}`:""}</small></div></td><td data-l="Net sur ton compte"><b>${eur(d.net,2)}</b></td><td data-l="Récupérable IRPF">${d.recup?eur(d.recup,2):"—"}</td></tr>`;
+  const pied = L => `<tfoot><tr><td>Total</td><td></td><td></td><td data-l="Brut">${eur(som(L,"brut"),2)}</td><td data-l="Retenues et frais">−${eur(som(L,"ret")+som(L,"fraisC")+som(L,"esp"),2)}</td><td data-l="Net">${eur(som(L,"net"),2)}</td><td data-l="Récupérable">${eur(som(L,"recup"),2)}</td></tr></tfoot>`;
+  const vus = ui.divTout ? avenir : avenir.slice(0, 10);
+  $("#tab-div").innerHTML = tete + "<tbody>" + vus.map(ligne).join("") + "</tbody>" + pied(avenir);
+  const bt = $("#btn-div-tout"); bt.hidden = avenir.length <= 10;
+  bt.textContent = ui.divTout ? "Afficher seulement les 10 prochains" : `Afficher les ${avenir.length} versements des 12 mois`;
+  bt.onclick = () => { ui.divTout = !ui.divTout; afficherDividendes(); };
+  $("#tab-div-passe").innerHTML = tete + "<tbody>" + [...passe].reverse().map(ligne).join("") + "</tbody>" + pied(passe);
+}
+
+function afficherMouvements(){
+  const T = titres(), mv = mouvements().reverse();
+  $("#tab-mvt").innerHTML = `<thead><tr><th>Opération</th><th>Titre</th><th>Quantité</th><th>Cours</th><th>Montant</th><th>Plus-value réalisée</th><th></th></tr></thead><tbody>` +
+    mv.map(m => { const r = M.ventes[m.id]; return `<tr><td><b>${m.type==="achat"?"Achat":"Vente"}</b> · ${fdate(m.date)}</td><td data-l="Titre"><b>${esc(T[m.sym]?.nom||m.sym)}</b></td>
+      <td data-l="Quantité">${nf(m.qte, m.qte%1?2:0)}</td><td data-l="Cours">${nf(m.prix, m.prix<10?3:2)} ${esc(T[m.sym]?.dev||"")}</td><td data-l="Montant">${eur(m.montant,2)}</td><td data-l="Plus-value réalisée" class="${cls(r)}">${r!=null?sgn(r,0," €"):""}</td>
+      <td>${m.source!=="manuel"?"":`<button class="bouton doux mini" data-suppr="${m.id}" type="button">Supprimer</button>`}</td></tr>`; }).join("") + "</tbody>";
+  $("#tab-mvt").querySelectorAll("[data-suppr]").forEach(b => b.addEventListener("click", () => {
+    if (!confirm("Supprimer ce mouvement ?")) return;
+    LOCAL.mouvements = LOCAL.mouvements.filter(m => m.id !== b.dataset.suppr); sauverLocal(); tout(); }));
+  // liste des titres du formulaire
+  const sel = $("#sel-titre"), act = positionsA("9999-12-31"), v = sel.value;
+  const noms = Object.keys(T).sort((a,b) => (T[a].nom||a).localeCompare(T[b].nom||b));
+  sel.innerHTML = `<optgroup label="En portefeuille">${noms.filter(s=>act[s]).map(s=>`<option value="${s}">${esc(T[s].nom)}</option>`).join("")}</optgroup>` +
+    `<optgroup label="Autres titres connus">${noms.filter(s=>!act[s]).map(s=>`<option value="${s}">${esc(T[s].nom)}</option>`).join("")}</optgroup><option value="__nouveau">Nouveau titre…</option>`;
+  if (v) sel.value = v;
+  majDevPrix();
+}
+
+function afficherReglages(){
+  const F = fisc(), pays = [...new Set(Object.values(titres()).map(t => t.pays).filter(Boolean))].sort((a,b)=>(PAYS[a]||a).localeCompare(PAYS[b]||b));
+  $("#grille-taux").innerHTML = `<label>Retenue Espagne (%)<input type="number" step="0.01" data-f="espagne" value="${F.espagne}"></label><label>Frais de change (%)<input type="number" step="0.01" data-f="change" value="${F.change}"></label>` +
+    pays.map(p => `<label>Retenue ${PAYS[p]||p} (%)<input type="number" step="0.001" data-o="${p}" value="${F.origine[p] ?? 0}"></label>`).join("");
+  $("#grille-pru").innerHTML = M.pos.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(p => `<label>${esc(p.nom)}<input type="number" step="0.01" data-pru="${p.sym}" value="${LOCAL.pru[p.sym] ?? ""}" placeholder="${p.pru!=null?nf(p.pru,2):""}"></label>`).join("");
+}
+
+function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherPositions(); afficherDividendes(); afficherMouvements(); afficherReglages(); }
+
+/* ---------- saisie ---------- */
+function majDevPrix(){
+  const s = $("#sel-titre").value, nouveau = s === "__nouveau";
+  $("#bloc-nouveau").classList.toggle("vu", nouveau);
+  const dev = nouveau ? document.querySelector('[name="ndev"]').value : devise(s);
+  $("#dev-prix").textContent = `(${dev})`;
+}
+$("#sel-titre").addEventListener("change", majDevPrix);
+document.querySelector('[name="ndev"]').addEventListener("change", majDevPrix);
+$("#form-mvt").date.value = AUJ;
+$("#form-mvt").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const f = ev.target, msg = $("#msg-mvt"); msg.className = "message";
+  let sym = f.sym.value; const qte = +f.qte.value, prix = +f.prix.value, date = f.date.value, type = f.type.value;
+  if (!(qte > 0) || !(prix > 0) || !date){ msg.textContent = "Indique une date, une quantité et un cours."; msg.classList.add("err"); return; }
+  if (sym === "__nouveau"){
+    const nsym = f.nsym.value.trim().toUpperCase(), nnom = f.nnom.value.trim();
+    if (!nsym || !nnom){ msg.textContent = "Pour un nouveau titre, indique son nom et son symbole."; msg.classList.add("err"); return; }
+    sym = nsym; if (!titres()[sym]) LOCAL.titres[sym] = {nom:nnom, dev:f.ndev.value, pays:f.npays.value, secteur:f.nsecteur.value.trim()||"Autre", zone: {FR:"Zone euro",ES:"Zone euro",DE:"Zone euro",NL:"Zone euro",IE:"Zone euro",US:"Amérique du Nord",CA:"Amérique du Nord",GB:"Royaume-Uni",JP:"Asie"}[f.npays.value]||"Europe hors euro", freq:0};
+  }
+  if (type === "vente"){ const dispo = positionsA(date)[sym] || 0; if (qte > dispo + 1e-9){ msg.textContent = `Tu n'as que ${nf(dispo,0)} actions à cette date.`; msg.classList.add("err"); return; } }
+  const fx = fxA(devise(sym), date) || 1;
+  const montant = f.montant.value ? +f.montant.value : Math.round(qte*prix/fx*100)/100;
+  LOCAL.mouvements.push({id:"m"+Date.now(), date, type, sym, qte, prix, montant, source:"manuel"});
+  sauverLocal(); tout();
+  msg.textContent = `${type === "achat" ? "Achat" : "Vente"} enregistré : ${nf(qte,0)} ${titres()[sym].nom} pour ${eur(montant,2)}.`; msg.classList.add("ok");
+  f.qte.value = f.prix.value = f.montant.value = ""; f.nsym.value = f.nnom.value = ""; f.sym.value = sym; majDevPrix();
+});
+
+function telecharger(nom, obj){
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 1)], {type:"application/json"}));
+  a.download = nom; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+$("#btn-export").addEventListener("click", () => telecharger(`wimloc-invest-sauvegarde-${AUJ}.json`, {wimloc:"portefeuille", ...LOCAL}));
+$("#btn-import").addEventListener("change", async ev => {
+  const fi = ev.target.files[0]; if (!fi) return;
+  try { const o = JSON.parse(await fi.text()); if (o.wimloc !== "portefeuille") throw 0;
+    LOCAL = {mouvements:o.mouvements||[], titres:o.titres||{}, pru:o.pru||{}, fisc:o.fisc||{}}; sauverLocal(); tout(); alert("Sauvegarde importée."); }
+  catch(e){ alert("Ce fichier n'est pas une sauvegarde Wimloc Invest."); }
+  ev.target.value = "";
+});
+$("#btn-github").addEventListener("click", () => {
+  const pf = JSON.parse(JSON.stringify(PF));
+  pf.titres = titres();
+  pf.mouvements = mouvements().map(({id, ...m}) => ({...m, source: "historique"}));
+  telecharger("portefeuille.json", pf);
+  alert("Remplace le fichier invest/portefeuille/portefeuille.json de ton dépôt GitHub par celui-ci. Tes saisies deviennent permanentes, et les cours des nouveaux titres sont récupérés automatiquement. Tu pourras ensuite effacer tes saisies locales en important une sauvegarde vide.");
+});
+$("#btn-reglages").addEventListener("click", () => {
+  LOCAL.fisc = {origine:{}};
+  document.querySelectorAll("[data-f]").forEach(i => { if (i.value !== "") LOCAL.fisc[i.dataset.f] = +i.value; });
+  document.querySelectorAll("[data-o]").forEach(i => { if (i.value !== "" && +i.value !== PF.fiscalite.origine[i.dataset.o]) LOCAL.fisc.origine[i.dataset.o] = +i.value; });
+  LOCAL.pru = {}; document.querySelectorAll("[data-pru]").forEach(i => { if (i.value !== "") LOCAL.pru[i.dataset.pru] = +i.value; });
+  sauverLocal(); tout(); $("#reglages").open = true;
+});
+$("#btn-raz").addEventListener("click", () => { LOCAL.fisc = {}; LOCAL.pru = {}; sauverLocal(); tout(); });
+
+function pilules(id, cle, apres){
+  document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x === b)); ui[cle] = b.dataset.v; apres(); }));
+}
+pilules("mode-evo","evoMode",afficherEvolution); pilules("periode-evo","evoPer",afficherEvolution); pilules("mode-rep","rep",afficherPositions);
+let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherDividendes(); } }, 200); });
+
+async function demarrer(){
+  chargerLocal();
+  try {
+    const [a, b] = await Promise.all([fetch("portefeuille.json", {cache:"no-store"}), fetch(RAW + "prices.json?t=" + Math.floor(Date.now()/60000), {cache:"no-store"})]);
+    if (!a.ok || !b.ok) throw new Error("http");
+    PF = await a.json(); PX = await b.json();
+    tout();
+  } catch(e){ console.error(e); $("#maj").textContent = "Impossible de charger les données. Réessaie dans quelques minutes."; }
+}
+demarrer();
+</script>
+</body>
+</html>

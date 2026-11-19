@@ -1,0 +1,593 @@
+{
+ "nom": "Mon portefeuille fictif",
+ "depart": {
+  "date": "2026-11-12",
+  "total": 75932.91,
+  "eurusd": 1.1214,
+  "eurgbp": 0.8354,
+  "positions": [
+   {
+    "sym": "GOOGL",
+    "qte": 20,
+    "cours": 287.38,
+    "valeur": 5125.38
+   },
+   {
+    "sym": "GOOG",
+    "qte": 8,
+    "cours": 290.63,
+    "valeur": 2073.34
+   },
+   {
+    "sym": "ACN",
+    "qte": 20,
+    "cours": 253.66,
+    "valeur": 4523.99
+   },
+   {
+    "sym": "BABA",
+    "qte": 20,
+    "cours": 101.52,
+    "valeur": 1810.59
+   },
+   {
+    "sym": "AMZN",
+    "qte": 17,
+    "cours": 266.17,
+    "valeur": 4035.04
+   },
+   {
+    "sym": "ASPI",
+    "qte": 400,
+    "cours": 1.96,
+    "valeur": 699.13
+   },
+   {
+    "sym": "BGO-FR",
+    "qte": 120,
+    "cours": 7.6,
+    "valeur": 912.0
+   },
+   {
+    "sym": "BHP-GB",
+    "qte": 104,
+    "cours": 30.88,
+    "valeur": 3844.06
+   },
+   {
+    "sym": "BKNG",
+    "qte": 25,
+    "cours": 160.21,
+    "valeur": 3571.65
+   },
+   {
+    "sym": "CAP-FR",
+    "qte": 30,
+    "cours": 123.95,
+    "valeur": 3718.5
+   },
+   {
+    "sym": "CVX",
+    "qte": 25,
+    "cours": 211.22,
+    "valeur": 4708.85
+   },
+   {
+    "sym": "DSY-FR",
+    "qte": 210,
+    "cours": 25.34,
+    "valeur": 5321.4
+   },
+   {
+    "sym": "ENB",
+    "qte": 80,
+    "cours": 47.91,
+    "valeur": 3417.87
+   },
+   {
+    "sym": "GEV",
+    "qte": 5,
+    "cours": 808.24,
+    "valeur": 3603.71
+   },
+   {
+    "sym": "GE",
+    "qte": 20,
+    "cours": 342.75,
+    "valeur": 6112.89
+   },
+   {
+    "sym": "NVO",
+    "qte": 25,
+    "cours": 36.22,
+    "valeur": 905.5
+   },
+   {
+    "sym": "RIO-GB",
+    "qte": 41,
+    "cours": 63.23,
+    "valeur": 3103.03
+   },
+   {
+    "sym": "SGO-FR",
+    "qte": 25,
+    "cours": 75.5,
+    "valeur": 1887.5
+   },
+   {
+    "sym": "SFL",
+    "qte": 450,
+    "cours": 10.94,
+    "valeur": 4388.04
+   },
+   {
+    "sym": "SHELL-NL",
+    "qte": 128,
+    "cours": 43.54,
+    "valeur": 5573.12
+   },
+   {
+    "sym": "SONY",
+    "qte": 100,
+    "cours": 26.49,
+    "valeur": 2362.23
+   },
+   {
+    "sym": "TTE-FR",
+    "qte": 30,
+    "cours": 79.37,
+    "valeur": 2381.1
+   },
+   {
+    "sym": "VIRI-FR",
+    "qte": 20,
+    "cours": 92.7,
+    "valeur": 1854.0
+   }
+  ]
+ },
+ "titres": {
+  "GOOGL": {
+   "nom": "Alphabet (classe A)",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Technologie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 7
+  },
+  "GOOG": {
+   "nom": "Alphabet (classe C)",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Technologie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 7
+  },
+  "ACN": {
+   "nom": "Accenture",
+   "dev": "USD",
+   "pays": "IE",
+   "secteur": "Technologie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 32
+  },
+  "BABA": {
+   "nom": "Alibaba (ADR)",
+   "dev": "USD",
+   "pays": "KY",
+   "secteur": "Commerce en ligne",
+   "zone": "Asie",
+   "freq": 1,
+   "lag": 30
+  },
+  "AMZN": {
+   "nom": "Amazon",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Commerce en ligne",
+   "zone": "Amérique du Nord",
+   "freq": 0
+  },
+  "ASPI": {
+   "nom": "ASP Isotopes",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Santé",
+   "zone": "Amérique du Nord",
+   "freq": 0
+  },
+  "BGO-FR": {
+   "nom": "Belgrano",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Industrie",
+   "zone": "Zone euro",
+   "freq": 0
+  },
+  "BHP-GB": {
+   "nom": "BHP Group",
+   "dev": "GBP",
+   "pays": "AU",
+   "secteur": "Matériaux",
+   "zone": "Royaume-Uni",
+   "freq": 2,
+   "lag": 23
+  },
+  "BKNG": {
+   "nom": "Booking Holdings",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Consommation",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 25
+  },
+  "CAP-FR": {
+   "nom": "Capgemini",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Technologie",
+   "zone": "Zone euro",
+   "freq": 1,
+   "lag": 3
+  },
+  "CVX": {
+   "nom": "Chevron",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Énergie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 22
+  },
+  "DSY-FR": {
+   "nom": "Dassault Systèmes",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Logiciels",
+   "zone": "Zone euro",
+   "freq": 1,
+   "lag": 3
+  },
+  "ENB": {
+   "nom": "Enbridge",
+   "dev": "USD",
+   "pays": "CA",
+   "secteur": "Énergie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 17
+  },
+  "GEV": {
+   "nom": "GE Vernova",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Industrie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 10
+  },
+  "GE": {
+   "nom": "GE Aerospace",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Industrie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 25
+  },
+  "NVO": {
+   "nom": "Novo Nordisk B",
+   "dev": "USD",
+   "pays": "DK",
+   "secteur": "Santé",
+   "zone": "Europe hors euro",
+   "freq": 2,
+   "lag": 4,
+   "note": "Cours de l'ADR new-yorkais (1 ADR = 1 action B), converti en euros"
+  },
+  "RIO-GB": {
+   "nom": "Rio Tinto",
+   "dev": "GBP",
+   "pays": "GB",
+   "secteur": "Matériaux",
+   "zone": "Royaume-Uni",
+   "freq": 2,
+   "lag": 38
+  },
+  "SGO-FR": {
+   "nom": "Saint-Gobain",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Industrie",
+   "zone": "Zone euro",
+   "freq": 1,
+   "lag": 3
+  },
+  "SFL": {
+   "nom": "SFL Corporation",
+   "dev": "USD",
+   "pays": "BM",
+   "secteur": "Énergie",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 12
+  },
+  "SHELL-NL": {
+   "nom": "Shell",
+   "dev": "EUR",
+   "pays": "GB",
+   "secteur": "Énergie",
+   "zone": "Royaume-Uni",
+   "freq": 4,
+   "lag": 35
+  },
+  "SONY": {
+   "nom": "Sony (ADR)",
+   "dev": "USD",
+   "pays": "JP",
+   "secteur": "Technologie",
+   "zone": "Asie",
+   "freq": 2,
+   "lag": 65
+  },
+  "TTE-FR": {
+   "nom": "TotalEnergies",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Énergie",
+   "zone": "Zone euro",
+   "freq": 4,
+   "lag": 3
+  },
+  "VIRI-FR": {
+   "nom": "Viridien",
+   "dev": "EUR",
+   "pays": "FR",
+   "secteur": "Énergie",
+   "zone": "Zone euro",
+   "freq": 0
+  },
+  "MDT": {
+   "nom": "Medtronic",
+   "dev": "USD",
+   "pays": "IE",
+   "secteur": "Santé",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 25
+  },
+  "UAA": {
+   "nom": "Under Armour",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Consommation",
+   "zone": "Amérique du Nord",
+   "freq": 0
+  },
+  "FTNT": {
+   "nom": "Fortinet",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Technologie",
+   "zone": "Amérique du Nord",
+   "freq": 0
+  },
+  "PDD": {
+   "nom": "PDD Holdings",
+   "dev": "USD",
+   "pays": "KY",
+   "secteur": "Commerce en ligne",
+   "zone": "Asie",
+   "freq": 0
+  },
+  "GEHC": {
+   "nom": "GE HealthCare",
+   "dev": "USD",
+   "pays": "US",
+   "secteur": "Santé",
+   "zone": "Amérique du Nord",
+   "freq": 4,
+   "lag": 30
+  }
+ },
+ "mouvements": [
+  {
+   "date": "2025-12-15",
+   "type": "achat",
+   "sym": "AMZN",
+   "qte": 6.0,
+   "prix": 224.7898,
+   "montant": 1157.61,
+   "source": "historique"
+  },
+  {
+   "date": "2025-12-16",
+   "type": "achat",
+   "sym": "AMZN",
+   "qte": 6.0,
+   "prix": 223.0,
+   "montant": 1152.0,
+   "source": "historique"
+  },
+  {
+   "date": "2026-01-09",
+   "type": "achat",
+   "sym": "BHP-GB",
+   "qte": 56.0,
+   "prix": 23.17,
+   "montant": 1505.55,
+   "source": "historique"
+  },
+  {
+   "date": "2026-01-09",
+   "type": "vente",
+   "sym": "SHELL-NL",
+   "qte": 58.0,
+   "prix": 30.21,
+   "montant": 1747.43,
+   "source": "historique"
+  },
+  {
+   "date": "2026-02-18",
+   "type": "achat",
+   "sym": "DSY-FR",
+   "qte": 130.0,
+   "prix": 16.945,
+   "montant": 2216.86,
+   "source": "historique"
+  },
+  {
+   "date": "2026-02-18",
+   "type": "vente",
+   "sym": "GEHC",
+   "qte": 7.0,
+   "prix": 81.46,
+   "montant": 477.91,
+   "source": "historique"
+  },
+  {
+   "date": "2026-05-27",
+   "type": "achat",
+   "sym": "DSY-FR",
+   "qte": 80.0,
+   "prix": 19.915,
+   "montant": 1604.16,
+   "source": "historique"
+  },
+  {
+   "date": "2026-05-27",
+   "type": "vente",
+   "sym": "PDD",
+   "qte": 20.0,
+   "prix": 88.6,
+   "montant": 1514.37,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-02",
+   "type": "achat",
+   "sym": "CAP-FR",
+   "qte": 30.0,
+   "prix": 91.34,
+   "montant": 2756.9,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-02",
+   "type": "achat",
+   "sym": "ACN",
+   "qte": 20.0,
+   "prix": 134.855,
+   "montant": 2371.79,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-02",
+   "type": "vente",
+   "sym": "MDT",
+   "qte": 20.0,
+   "prix": 80.236,
+   "montant": 1390.1,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-02",
+   "type": "vente",
+   "sym": "UAA",
+   "qte": 220.0,
+   "prix": 6.59,
+   "montant": 1255.65,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-02",
+   "type": "vente",
+   "sym": "FTNT",
+   "qte": 50.0,
+   "prix": 158.12,
+   "montant": 6859.0,
+   "source": "historique"
+  },
+  {
+   "date": "2026-07-06",
+   "type": "achat",
+   "sym": "ACN",
+   "qte": 13.0,
+   "prix": 135.19,
+   "montant": 1550.24,
+   "source": "historique"
+  },
+  {
+   "date": "2026-09-09",
+   "type": "achat",
+   "sym": "AMZN",
+   "qte": 5.0,
+   "prix": 253.0,
+   "montant": 1096.48,
+   "source": "historique"
+  },
+  {
+   "date": "2026-09-23",
+   "type": "achat",
+   "sym": "ASPI",
+   "qte": 200.0,
+   "prix": 3.12,
+   "montant": 553.82,
+   "source": "historique"
+  },
+  {
+   "date": "2026-11-10",
+   "type": "vente",
+   "sym": "ACN",
+   "qte": 13.0,
+   "prix": 253.87,
+   "montant": 2938.95,
+   "source": "historique"
+  },
+  {
+   "date": "2026-11-12",
+   "type": "achat",
+   "sym": "SFL",
+   "qte": 150.0,
+   "prix": 10.87,
+   "montant": 1485.99,
+   "source": "historique"
+  }
+ ],
+ "fiscalite": {
+  "espagne": 19.0,
+  "change": 0.5,
+  "origine": {
+   "US": 15,
+   "FR": 12.8,
+   "GB": 0,
+   "AU": 0,
+   "IE": 25,
+   "CA": 25,
+   "DK": 27,
+   "JP": 15.315,
+   "KY": 0,
+   "BM": 0,
+   "NL": 15,
+   "DE": 26.375
+  },
+  "plafond": {
+   "US": 15,
+   "FR": 15,
+   "GB": 0,
+   "AU": 15,
+   "IE": 15,
+   "CA": 15,
+   "DK": 19,
+   "JP": 15,
+   "KY": 0,
+   "BM": 0,
+   "NL": 15,
+   "DE": 15
+  }
+ }
+}

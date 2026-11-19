@@ -11,6 +11,8 @@ on:
     paths:
       - ".github/workflows/invest-data.yml"
       - "invest/fetch_invest.py"
+      - "invest/fetch_portefeuille.py"
+      - "invest/portefeuille/portefeuille.json"
 
 permissions:
   contents: write
@@ -29,9 +31,11 @@ jobs:
         run: |
           mkdir -p /tmp/out
           git fetch -q --depth=1 origin invest-data || exit 0
-          git show FETCH_HEAD:data.json > /tmp/out/data.json || rm -f /tmp/out/data.json
+          for f in data.json prices.json; do git show FETCH_HEAD:$f > /tmp/out/$f || rm -f /tmp/out/$f; done
       - name: Récupérer bourse, changes et taux
         run: python3 invest/fetch_invest.py /tmp/out
+      - name: Récupérer cours et dividendes du portefeuille
+        run: python3 invest/fetch_portefeuille.py /tmp/out
       - name: Publier sur la branche invest-data
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
