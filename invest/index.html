@@ -16,7 +16,7 @@
   @media (prefers-color-scheme:dark){:root{--hausse:#86d6a4;--baisse:#ff9f8c}}
   .marque small{font-family:var(--texte);font-weight:600;font-size:.8rem;color:var(--ciel-fonce);margin-left:2px}
   .ouverture.inv{padding-block:36px 28px}
-  .ouverture.inv .col{display:flex;flex-direction:column;gap:14px;grid-template-columns:none}
+  .ouverture.inv .col{display:flex;flex-direction:column;align-items:stretch;gap:14px;grid-template-columns:none}
   .barre{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .maj{font-size:.92rem;color:var(--brun-doux)}
   .periodes{display:flex;gap:4px;font-family:var(--rond);font-weight:600;font-size:.9rem}
@@ -27,7 +27,7 @@
   .bloc h3{font-size:1.05rem;color:var(--brun-doux);margin-top:6px}
   .grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:14px}
   .tuile{background:var(--carte);border:1px solid var(--trait);border-radius:20px;padding:14px 16px 10px;display:flex;flex-direction:column;gap:4px;min-width:0;position:relative}
-  .tuile .tete{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .tuile .tete{display:flex;justify-content:space-between;align-items:center;gap:4px 8px;flex-wrap:wrap}
   .tuile .nom{font-family:var(--rond);font-weight:700;font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .etat{font-family:var(--rond);font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--trait);color:var(--brun-doux);white-space:nowrap}
   .etat.ouvert{background:var(--ciel);border-color:var(--ciel);color:#1e3b52}
@@ -54,7 +54,7 @@
   .barres .chiffre{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   .avert{font-size:.88rem;color:var(--brun-doux)}
   .vide{color:var(--brun-doux);font-style:italic}
-  @media (max-width:520px){.grille{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tuile{padding:12px 12px 8px;border-radius:16px}.valeur{font-size:1.25rem}.taux .valeur{font-size:1.35rem}.barres .rang{grid-template-columns:96px minmax(0,1fr) 56px}}
+  @media (max-width:520px){.grille{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tuile{padding:12px 12px 8px;border-radius:16px}.valeur{font-size:1.25rem}.taux .valeur{font-size:1.35rem}.barres .rang{grid-template-columns:96px minmax(0,1fr) 56px}.tuile .nom{white-space:normal;line-height:1.25}}
 </style>
 </head>
 <body>
@@ -233,7 +233,9 @@ function afficher(){
   taux();
   const d = new Date(donnees.updated);
   document.getElementById("maj").textContent = "Mis à jour le " + d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}) + " à " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + " (cours éventuellement différés de 15 min).";
-  const src = [...new Set(Object.values(donnees.items).map(i => i.src))].join(", ");
+  const l = new Set(Object.values(donnees.items).map(i => i.src));
+  if (Object.values(donnees.items).some(i => i.ecb)) l.add("Banque centrale européenne (fixing)");
+  const src = [...l].join(", ");
   document.getElementById("sources").textContent = "Sources : " + src + ".";
 }
 
