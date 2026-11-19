@@ -172,10 +172,8 @@ def cnbc(sym):
     price = num(q.get("last"))
     if price is None:
         raise ValueError("pas de cours")
-    prev = num(q.get("previous_day_closing"))
-    if prev is None:
-        ch = num(q.get("change"))
-        prev = price - ch if ch is not None else None
+    ch = num(q.get("change"))
+    prev = price - ch if ch is not None else num(q.get("previous_day_closing"))
     t = q.get("last_time")  # ex. 2026-11-19T14:20:05.000+0000
     try:
         iso = dt.datetime.strptime(t[:19] + t[-5:], "%Y-%m-%dT%H:%M:%S%z").astimezone(dt.timezone.utc).isoformat()
@@ -183,6 +181,38 @@ def cnbc(sym):
         iso = None
     day = (iso or TODAY.isoformat())[:10]
     return {"price": price, "prev": prev, "src": "CNBC", "time": iso, "hist": [[day, price]]}
+
+
+def cnbc_hist(sym):
+    """Clôtures journalières sur 1 an (graphique CNBC)."""
+    t = get("https://ts-api.cnbc.com/harmony/app/charts/1Y.json?symbol=" + urllib.parse.quote(sym, safe=""))
+    data = json.loads(t)
+    bars = []
+
+    def walk(o):
+        if isinstance(o, list) and o and isinstance(o[0], dict) and "close" in o[0]:
+            bars.extend(o)
+        elif isinstance(o, dict):
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(data)
+    out = []
+    for b in bars:
+        v = num(b.get("close"))
+        d = None
+        tt = str(b.get("tradeTime") or "")
+        if re.match(r"^\d{8}", tt):
+            d = f"{tt[:4]}-{tt[4:6]}-{tt[6:8]}"
+        elif b.get("tradeTimeinMills"):
+            d = dt.datetime.fromtimestamp(int(b["tradeTimeinMills"]) / 1000, dt.timezone.utc).date().isoformat()
+        if d and v is not None:
+            out.append([d, v])
+    if not out:
+        raise ValueError("aucune barre")
+    return sorted(out)
 
 
 # ---------- Stooq ----------
@@ -359,9 +389,9 @@ def main():
             if ysym:
                 chain.append(("Yahoo", yahoo, ysym))
         else:
+            chain.append(("CNBC", cnbc, csym))
             if ysym:
                 chain.append(("Yahoo", yahoo, ysym))
-            chain.append(("CNBC", cnbc, csym))
             chain.append(("Stooq", stooq, ssym))
             if ecb_series.get(iid):
                 chain.append(("BCE", lambda h: from_series(h, "BCE (référence)"), ecb_series[iid]))
@@ -380,6 +410,9 @@ def main():
 
         prev_item = old.get(iid, {})
         extra = official.get(iid, (None, None))[1] if group == "taux" else None
+        ch = None
+        if csym and res is not None and res.get("src") in ("CNBC", "Stooq"):
+            ch = safe(f"{name} / historique CNBC", cnbc_hist, csym)
         if res is None:
             if prev_item.get("price") is not None:
                 prev_item["stale"] = True
@@ -388,7 +421,7 @@ def main():
         if res.get("monthly"):
             hist = res["hist"]
         else:
-            hist = merge_hist(prev_item.get("hist") if not prev_item.get("monthly") else None, extra, res.get("hist"))
+            hist = merge_hist(prev_item.get("hist") if not prev_item.get("monthly") else None, extra, ch, res.get("hist"))
         if res.get("prev") is None and len(hist) > 1:
             last_day = (res.get("time") or res.get("asof") or TODAY.isoformat())[:10]
             older = [v for d, v in hist if d < last_day]
