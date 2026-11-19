@@ -795,10 +795,12 @@ function dataBounds(m){
 function applyBounds(b){
   map.invalidateSize();
   map.setMaxBounds(null); map.setMinZoom(0);
-  const z = map.getBoundsZoom(b, true);
-  map.setMinZoom(z);
+  map.setMinZoom(map.getBoundsZoom(b, true));          // on ne peut pas dézoomer au-delà des données
+  // Vue de départ centrée sur Séville : le plus grand cadre symétrique autour de Séville qui reste dans les données
+  const dLat = Math.min(SVQ.lat - b[0][0], b[1][0] - SVQ.lat), dLon = Math.min(SVQ.lon - b[0][1], b[1][1] - SVQ.lon);
+  const box = [[SVQ.lat - dLat, SVQ.lon - dLon], [SVQ.lat + dLat, SVQ.lon + dLon]];
+  map.setView([SVQ.lat, SVQ.lon], map.getBoundsZoom(box, true), {animate:false});
   map.setMaxBounds(b);
-  map.setView(L.latLngBounds(b).getCenter(), z, {animate:false});
 }
 async function setMode(m){
   stopPlay(); mode = m;
