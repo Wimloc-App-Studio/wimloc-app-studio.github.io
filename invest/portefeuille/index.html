@@ -74,6 +74,11 @@
   .bouton{font:inherit;font-family:var(--rond);font-weight:700;background:var(--brun);color:var(--creme);border:0;border-radius:999px;padding:10px 18px;cursor:pointer}
   .bouton.doux{background:transparent;color:var(--brun);border:1px solid var(--trait)}
   .bouton.mini{padding:3px 10px;font-size:.8rem}
+  .poubelle{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;border:1px solid var(--trait);background:transparent;color:var(--brun-doux);cursor:pointer}
+  .poubelle:hover,.poubelle:focus-visible{color:var(--baisse);border-color:var(--baisse)}
+  .poubelle svg{width:18px;height:18px}
+  .estim{font-size:.85rem;color:var(--brun-doux);grid-column:1/-1;margin-top:-4px}
+  @media (max-width:640px){#tab-mvt td:last-child{position:absolute;top:10px;right:12px}#tab-mvt tr{position:relative}}
   .actions{display:flex;gap:8px;flex-wrap:wrap}
   .message{font-weight:600}
   .message.err{color:var(--baisse)}.message.ok{color:var(--hausse)}
@@ -96,7 +101,7 @@
     .cartes tbody tr:last-child{border-bottom:0}
     .cartes td,.cartes tfoot td{display:flex;flex-direction:column;align-items:flex-start;gap:0;padding:0;border:0;text-align:left;white-space:normal;position:static;background:none;font-size:.95rem}
     .cartes td::before{content:attr(data-l);color:var(--brun-doux);font-size:.74rem;font-weight:600}
-    .cartes td:first-child{grid-column:1/-1}
+    .cartes td:first-child{grid-column:1/-1;display:block;padding-right:44px}
     .cartes td:first-child::before{content:none}
     .cartes td:empty{display:none}
     .cartes td>div{text-align:left}
@@ -175,8 +180,9 @@
       <label>Secteur<input name="nsecteur" placeholder="ex. Luxe"></label>
     </div>
     <label>Quantité<input type="number" name="qte" min="0" step="any" required inputmode="decimal"></label>
-    <label><span>Cours unitaire <span id="dev-prix">(devise du titre)</span></span><input type="number" name="prix" min="0" step="any" required inputmode="decimal"></label>
+    <label><span>Cours unitaire <span id="dev-prix">(devise du titre)</span></span><input type="number" name="prix" min="0" step="any" inputmode="decimal" placeholder="cours actuel"></label>
     <label>Montant total en €, frais compris<input type="number" name="montant" min="0" step="0.01" inputmode="decimal" placeholder="calculé si vide"></label>
+    <p class="estim" id="estim"></p>
     <div class="actions"><button class="bouton" type="submit">Enregistrer</button></div>
     <p class="message" id="msg-mvt" style="grid-column:1/-1"></p>
   </form>
@@ -189,6 +195,7 @@
   </div>
   <h3>Historique des mouvements</h3>
   <div class="defile"><table id="tab-mvt" class="cartes"></table></div>
+  <button class="bouton doux plus" type="button" id="btn-restaurer" hidden></button>
 
   <details id="reglages"><summary>Réglages : prix de revient et retenues sur dividendes</summary>
     <p class="note">Taux appliqués par défaut pour un résident fiscal espagnol. Modifie-les si tes avis de dividende montrent un autre taux.</p>
@@ -241,11 +248,12 @@ function dernier(serie, d){ // dernière valeur à la date d ou avant (recherche
 /* ---------- données ---------- */
 function chargerLocal(){
   try { LOCAL = JSON.parse(localStorage.getItem(CLE)) || {}; } catch(e){ LOCAL = {}; }
-  LOCAL.mouvements = LOCAL.mouvements || []; LOCAL.titres = LOCAL.titres || {}; LOCAL.pru = LOCAL.pru || {}; LOCAL.fisc = LOCAL.fisc || {};
+  LOCAL.mouvements = LOCAL.mouvements || []; LOCAL.titres = LOCAL.titres || {}; LOCAL.pru = LOCAL.pru || {}; LOCAL.fisc = LOCAL.fisc || {}; LOCAL.supprimes = LOCAL.supprimes || [];
 }
 function sauverLocal(){ try { localStorage.setItem(CLE, JSON.stringify(LOCAL)); } catch(e){} }
 const titres = () => Object.assign({}, PF.titres, LOCAL.titres);
-const mouvements = () => [...PF.mouvements.map((m,i)=>({...m,id:"h"+i})), ...LOCAL.mouvements].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+const cleMvt = m => [m.date, m.type, m.sym, m.qte, m.prix].join("|");
+const mouvements = () => [...PF.mouvements.map(m => ({...m, id:"h|"+cleMvt(m)})).filter(m => !LOCAL.supprimes.includes(m.id)), ...LOCAL.mouvements].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
 const fisc = () => ({espagne: LOCAL.fisc.espagne ?? PF.fiscalite.espagne, change: LOCAL.fisc.change ?? PF.fiscalite.change,
   origine: Object.assign({}, PF.fiscalite.origine, LOCAL.fisc.origine||{}), plafond: PF.fiscalite.plafond});
 
@@ -272,7 +280,7 @@ function positionsA(d){ // quantités en fin de journée d
     if (m.date <= D0 && m.date > d) q[m.sym] = (q[m.sym]||0) - s*m.qte;      // on remonte le temps
     if (m.date > D0 && m.date <= d) q[m.sym] = (q[m.sym]||0) + s*m.qte;      // mouvements saisis après la date de départ
   }
-  Object.keys(q).forEach(k => { if (Math.abs(q[k]) < 1e-9) delete q[k]; });
+  Object.keys(q).forEach(k => { if (q[k] < 1e-9) delete q[k]; });
   return q;
 }
 
@@ -521,17 +529,23 @@ function afficherMouvements(){
   $("#tab-mvt").innerHTML = `<thead><tr><th>Opération</th><th>Titre</th><th>Quantité</th><th>Cours</th><th>Montant</th><th>Plus-value réalisée</th><th></th></tr></thead><tbody>` +
     mv.map(m => { const r = M.ventes[m.id]; return `<tr><td><b>${m.type==="achat"?"Achat":"Vente"}</b> · ${fdate(m.date)}</td><td data-l="Titre"><b>${esc(T[m.sym]?.nom||m.sym)}</b></td>
       <td data-l="Quantité">${nf(m.qte, m.qte%1?2:0)}</td><td data-l="Cours">${nf(m.prix, m.prix<10?3:2)} ${esc(T[m.sym]?.dev||"")}</td><td data-l="Montant">${eur(m.montant,2)}</td><td data-l="Plus-value réalisée" class="${cls(r)}">${r!=null?sgn(r,0," €"):""}</td>
-      <td>${m.source!=="manuel"?"":`<button class="bouton doux mini" data-suppr="${m.id}" type="button">Supprimer</button>`}</td></tr>`; }).join("") + "</tbody>";
+      <td><button class="poubelle" data-suppr="${esc(m.id)}" type="button" title="Supprimer cette opération" aria-label="Supprimer : ${m.type} de ${esc(T[m.sym]?.nom||m.sym)} du ${fdate(m.date)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></td></tr>`; }).join("") + "</tbody>";
   $("#tab-mvt").querySelectorAll("[data-suppr]").forEach(b => b.addEventListener("click", () => {
-    if (!confirm("Supprimer ce mouvement ?")) return;
-    LOCAL.mouvements = LOCAL.mouvements.filter(m => m.id !== b.dataset.suppr); sauverLocal(); tout(); }));
+    const m = mouvements().find(x => x.id === b.dataset.suppr); if (!m) return;
+    const q = `Supprimer ${m.type === "achat" ? "l'achat" : "la vente"} de ${nf(m.qte, m.qte%1?2:0)} ${T[m.sym]?.nom||m.sym} du ${fdate(m.date)} (${eur(m.montant,2)}) ?\n\nLe portefeuille, la performance et les dividendes seront recalculés.`;
+    if (!confirm(q)) return;
+    if (m.source === "manuel") LOCAL.mouvements = LOCAL.mouvements.filter(x => x.id !== m.id);
+    else LOCAL.supprimes.push(m.id);
+    sauverLocal(); tout(); }));
+  const nb = LOCAL.supprimes.length, rest = $("#btn-restaurer");
+  rest.hidden = !nb; rest.textContent = `Restaurer ${nb > 1 ? `les ${nb} opérations supprimées` : "l'opération supprimée"}`;
   // liste des titres du formulaire
   const sel = $("#sel-titre"), act = positionsA("9999-12-31"), v = sel.value;
   const noms = Object.keys(T).sort((a,b) => (T[a].nom||a).localeCompare(T[b].nom||b));
   sel.innerHTML = `<optgroup label="En portefeuille">${noms.filter(s=>act[s]).map(s=>`<option value="${s}">${esc(T[s].nom)}</option>`).join("")}</optgroup>` +
     `<optgroup label="Autres titres connus">${noms.filter(s=>!act[s]).map(s=>`<option value="${s}">${esc(T[s].nom)}</option>`).join("")}</optgroup><option value="__nouveau">Nouveau titre…</option>`;
   if (v) sel.value = v;
-  majDevPrix();
+  majDevPrix(!$("#form-mvt").prix.value || $("#form-mvt").prix.dataset.auto === "1");
 }
 
 function afficherReglages(){
@@ -544,32 +558,60 @@ function afficherReglages(){
 function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherPositions(); afficherDividendes(); afficherMouvements(); afficherReglages(); }
 
 /* ---------- saisie ---------- */
-function majDevPrix(){
-  const s = $("#sel-titre").value, nouveau = s === "__nouveau";
-  $("#bloc-nouveau").classList.toggle("vu", nouveau);
-  const dev = nouveau ? document.querySelector('[name="ndev"]').value : devise(s);
-  $("#dev-prix").textContent = `(${dev})`;
+// Frais de courtage typiques : 3 + 0,10 % (plafond 20, dans la devise du marché), change 0,5 % hors euro,
+// taxe sur les transactions financières à l'achat (France 0,4 %, Espagne 0,2 %, Italie 0,1 %, Royaume-Uni 0,5 %).
+const TAXE_ACHAT = {FR:0.004, ES:0.002, IT:0.001, GB:0.005};
+function frais(type, sym, qte, prix, date, devN, paysN){
+  const t = titres()[sym] || {}, dev = devN || devise(sym), pays = paysN || t.pays;
+  const fx = fxA(dev, date) || 1, brut = qte * prix;
+  const courtage = Math.min(3 + brut * 0.001, 20);
+  const taxe = type === "achat" && (dev === "EUR" || dev === "GBP") ? brut * (TAXE_ACHAT[pays] || 0) : 0;
+  const change = dev === "EUR" ? 0 : brut / fx * fisc().change / 100;
+  const fraisEur = (courtage + taxe) / fx + change, brutEur = brut / fx;
+  return {brutEur, fraisEur, courtage: courtage/fx, taxe: taxe/fx, change, montant: Math.round((type === "achat" ? brutEur + fraisEur : brutEur - fraisEur) * 100) / 100};
 }
-$("#sel-titre").addEventListener("change", majDevPrix);
-document.querySelector('[name="ndev"]').addEventListener("change", majDevPrix);
+function coursDefaut(sym, date){ const c = PX.titres[sym] ? coursA(sym, date >= AUJ ? AUJ : date) : null; return c; }
+function majDevPrix(prefill = true){
+  const f = $("#form-mvt"), s = f.sym.value, nouveau = s === "__nouveau";
+  $("#bloc-nouveau").classList.toggle("vu", nouveau);
+  const dev = nouveau ? f.ndev.value : devise(s);
+  $("#dev-prix").textContent = `(${dev})`;
+  if (prefill){ const c = nouveau ? null : coursDefaut(s, f.date.value || AUJ); f.prix.value = c ? +c.toFixed(c < 10 ? 4 : 2) : ""; f.prix.dataset.auto = c ? "1" : ""; }
+  majEstim();
+}
+function majEstim(){
+  const f = $("#form-mvt"), el = $("#estim"); let s = f.sym.value;
+  const nouveau = s === "__nouveau", qte = +f.qte.value, prix = +f.prix.value;
+  if (!(qte > 0) || !(prix > 0)){ el.textContent = f.prix.dataset.auto ? "Cours prérempli au dernier cours connu, modifiable." : ""; f.montant.placeholder = "calculé si vide"; return; }
+  const r = frais(f.type.value, nouveau ? "__" : s, qte, prix, f.date.value || AUJ, nouveau ? f.ndev.value : null, nouveau ? f.npays.value : null);
+  f.montant.placeholder = nf(r.montant, 2);
+  const det = [`courtage ${eur(r.courtage,2)}`]; if (r.taxe) det.push(`taxe sur les transactions ${eur(r.taxe,2)}`); if (r.change) det.push(`change ${eur(r.change,2)}`);
+  el.textContent = `Si tu laisses le montant vide : ${eur(r.montant,2)}, dont ${eur(r.fraisEur,2)} de frais typiques (${det.join(", ")}).`;
+}
+["sym","date"].forEach(n => $("#form-mvt")[n].addEventListener("change", () => majDevPrix(true)));
+["ndev","npays"].forEach(n => $("#form-mvt")[n].addEventListener("change", () => majDevPrix(false)));
+["qte","prix","type","montant"].forEach(n => $("#form-mvt")[n].addEventListener("input", () => { if (n === "prix") $("#form-mvt").prix.dataset.auto = ""; majEstim(); }));
+$("#btn-restaurer").addEventListener("click", () => { if (!confirm("Restaurer toutes les opérations supprimées ?")) return; LOCAL.supprimes = []; sauverLocal(); tout(); });
 $("#form-mvt").date.value = AUJ;
 $("#form-mvt").addEventListener("submit", ev => {
   ev.preventDefault();
   const f = ev.target, msg = $("#msg-mvt"); msg.className = "message";
-  let sym = f.sym.value; const qte = +f.qte.value, prix = +f.prix.value, date = f.date.value, type = f.type.value;
-  if (!(qte > 0) || !(prix > 0) || !date){ msg.textContent = "Indique une date, une quantité et un cours."; msg.classList.add("err"); return; }
+  let sym = f.sym.value; const qte = +f.qte.value, date = f.date.value, type = f.type.value;
+  let prix = +f.prix.value;
+  if (!(prix > 0) && sym !== "__nouveau") prix = +(coursDefaut(sym, date) || 0);
+  if (!(qte > 0) || !date){ msg.textContent = "Indique une date et une quantité."; msg.classList.add("err"); return; }
+  if (!(prix > 0)){ msg.textContent = "Indique le cours : il n'est pas connu pour ce titre."; msg.classList.add("err"); return; }
   if (sym === "__nouveau"){
     const nsym = f.nsym.value.trim().toUpperCase(), nnom = f.nnom.value.trim();
     if (!nsym || !nnom){ msg.textContent = "Pour un nouveau titre, indique son nom et son symbole."; msg.classList.add("err"); return; }
     sym = nsym; if (!titres()[sym]) LOCAL.titres[sym] = {nom:nnom, dev:f.ndev.value, pays:f.npays.value, secteur:f.nsecteur.value.trim()||"Autre", zone: {FR:"Zone euro",ES:"Zone euro",DE:"Zone euro",NL:"Zone euro",IE:"Zone euro",US:"Amérique du Nord",CA:"Amérique du Nord",GB:"Royaume-Uni",JP:"Asie"}[f.npays.value]||"Europe hors euro", freq:0};
   }
   if (type === "vente"){ const dispo = positionsA(date)[sym] || 0; if (qte > dispo + 1e-9){ msg.textContent = `Tu n'as que ${nf(dispo,0)} actions à cette date.`; msg.classList.add("err"); return; } }
-  const fx = fxA(devise(sym), date) || 1;
-  const montant = f.montant.value ? +f.montant.value : Math.round(qte*prix/fx*100)/100;
+  const montant = f.montant.value ? +f.montant.value : frais(type, sym, qte, prix, date).montant;
   LOCAL.mouvements.push({id:"m"+Date.now(), date, type, sym, qte, prix, montant, source:"manuel"});
   sauverLocal(); tout();
   msg.textContent = `${type === "achat" ? "Achat" : "Vente"} enregistré : ${nf(qte,0)} ${titres()[sym].nom} pour ${eur(montant,2)}.`; msg.classList.add("ok");
-  f.qte.value = f.prix.value = f.montant.value = ""; f.nsym.value = f.nnom.value = ""; f.sym.value = sym; majDevPrix();
+  f.qte.value = f.montant.value = ""; f.nsym.value = f.nnom.value = ""; f.sym.value = sym; majDevPrix(true);
 });
 
 function telecharger(nom, obj){
@@ -580,7 +622,7 @@ $("#btn-export").addEventListener("click", () => telecharger(`wimloc-invest-sauv
 $("#btn-import").addEventListener("change", async ev => {
   const fi = ev.target.files[0]; if (!fi) return;
   try { const o = JSON.parse(await fi.text()); if (o.wimloc !== "portefeuille") throw 0;
-    LOCAL = {mouvements:o.mouvements||[], titres:o.titres||{}, pru:o.pru||{}, fisc:o.fisc||{}}; sauverLocal(); tout(); alert("Sauvegarde importée."); }
+    LOCAL = {mouvements:o.mouvements||[], titres:o.titres||{}, pru:o.pru||{}, fisc:o.fisc||{}, supprimes:o.supprimes||[]}; sauverLocal(); tout(); alert("Sauvegarde importée."); }
   catch(e){ alert("Ce fichier n'est pas une sauvegarde Wimloc Invest."); }
   ev.target.value = "";
 });
