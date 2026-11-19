@@ -304,13 +304,34 @@ window.addEventListener("hashchange", showTab);
 /* =========================================================
    1. PRÉVISIONS 14 JOURS
    ========================================================= */
+// Durée de soleil : le modèle compte souvent du soleil sous des nuages fins ou partiels.
+// On l'estime aussi heure par heure d'après les nuages (bas et moyens comptent plein, hauts à 30 %)
+// et on garde la plus prudente des deux valeurs.
+function estimateSun(d){
+  const h = d.hourly, y = d.daily;
+  if (!h.cloud_cover_low) { y.sun_est = y.sunshine_duration; return; }
+  y.sun_est = y.time.map((day, k) => {
+    let s = 0, n = 0;
+    h.time.forEach((t, i) => {
+      if (t.slice(0,10) !== day || !h.is_day[i]) return;
+      n++;
+      const eff = Math.min(100, Math.max(h.cloud_cover_low[i] || 0, h.cloud_cover_mid[i] || 0) + 0.3*(h.cloud_cover_high[i] || 0));
+      s += 1 - eff/100;
+    });
+    const model = y.sunshine_duration[k];
+    if (!n) return model;
+    const est = s/n * (y.daylight_duration[k] || n*3600);
+    return model == null ? est : Math.min(model, est);
+  });
+}
 async function initPrevision(){
   try{
     const url = `${FC}?latitude=${SVQ.lat}&longitude=${SVQ.lon}&timezone=${TZ}&forecast_days=14` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,pressure_msl,is_day` +
-      `&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,is_day` +
+      `&hourly=temperature_2m,weather_code,precipitation,precipitation_probability,wind_speed_10m,wind_direction_10m,is_day,cloud_cover_low,cloud_cover_mid,cloud_cover_high` +
       `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunshine_duration,daylight_duration,sunrise,sunset,uv_index_max`;
-    const d = await cached("fcSVQ2", todayISO(), 0.5, () => getJSON(url));
+    const d = await cached("fcSVQ3", todayISO(), 0.5, () => getJSON(url));
+    estimateSun(d);
     renderHello(d); renderNow(d); renderStrip(d); renderDays(d);
   }catch(e){
     $("nowBox").innerHTML = `<div class="mut">⚠️ Prévision indisponible (${e.message}).</div>`;
@@ -403,7 +424,7 @@ function renderHello(d){
   const t0 = y.temperature_2m_max.slice(0,3).reduce((a,b)=>a+b,0)/3, t1 = y.temperature_2m_max.slice(4,8).reduce((a,b)=>a+b,0)/4;
   if (t1 - t0 >= 2) lines.push(`📈 Ça se réchauffe la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
   else if (t0 - t1 >= 2) lines.push(`📉 Ça se rafraîchit la semaine prochaine (vers ${r0(t1)}° l'après-midi).`);
-  const sunT = (y.sunshine_duration[0]||0)/3600;
+  const sunT = (y.sun_est[0]||0)/3600;
   if (hour < 17 && sunT >= 7) lines.push(`Belle journée : ${hmTxt(sunT)} de soleil.`);
   $("helloBox").innerHTML = `<div class="hi">${salut} Thomas</div>${lines.map(l=>`<p>${l}</p>`).join("")}`;
 }
@@ -422,7 +443,7 @@ function renderDays(d){
   y.time.forEach((t,i) => {
     const mm = y.precipitation_sum[i] || 0;
     const prob = y.precipitation_probability_max[i];
-    const sun = y.sunshine_duration[i] != null ? y.sunshine_duration[i]/3600 : null;
+    const sun = y.sun_est[i] != null ? y.sun_est[i]/3600 : null;
     const dayH = y.daylight_duration && y.daylight_duration[i] != null ? y.daylight_duration[i]/3600 : null;
     html += `<div class="row${i>=7?" low":""}" title="${wLabel(y.weather_code[i])}">
       <div class="dt"><b>${dayName(t,i)}</b><small>${wLabel(y.weather_code[i])}</small>
@@ -763,18 +784,32 @@ function legend(m){
 }
 function render(){ MODES[mode].render(); }
 function stopPlay(){ if (playing){ clearInterval(playing); playing = null; $("play").textContent = "▶︎"; } }
+// Zone couverte par les données de chaque carte : on ne peut ni sortir, ni dézoomer au-delà
+function dataBounds(m){
+  const ext = (g, f) => [[g.latMin, g.lonMin], [g.latMin + (f.length-1)*g.step, g.lonMin + (f[0].length-1)*g.step]];
+  if (m === "rain") return ext(FINE, fine.rain[0]);
+  if (m === "anom") return ext(anomEU.g, anomEU.anom[0]);
+  if (m === "pres") return ext(SYN, syn.pres[0]);
+  return [[35,-10],[44.5,4.5]];   // radar : péninsule Ibérique et Baléares
+}
+function applyBounds(b){
+  map.invalidateSize();
+  map.setMaxBounds(null); map.setMinZoom(0);
+  const z = map.getBoundsZoom(b, true);
+  map.setMinZoom(z);
+  map.setMaxBounds(b);
+  map.setView(L.latLngBounds(b).getCenter(), z, {animate:false});
+}
 async function setMode(m){
   stopPlay(); mode = m;
   document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
   legend(m); clearMap();
   const M = MODES[m];
-  if (M.view === "syn") map.fitBounds([[33,-22],[60,20]]);
-  else if (M.view === "eu") map.fitBounds([[35,-11],[69,40]]);
-  else if (map.getZoom() < 5) map.setView([38.6,-4.5], 5);
   try{
     $("mapStatus").textContent = "Chargement…";
     await M.load();
     if (mode !== m) return;
+    applyBounds(dataBounds(m));
     $("slider").max = M.steps() - 1;
     if (m === "radar"){
       step = radar.frames.findLastIndex(f => f.time*1000 <= Date.now());
@@ -790,7 +825,7 @@ async function setMode(m){
 }
 function initCartes(){
   if (typeof L === "undefined"){ $("map").outerHTML = `<div class="mut">⚠️ La carte n'a pas pu se charger.</div>`; return; }
-  map = L.map("map", {zoomControl:true}).setView([38.6,-4.5], 5);
+  map = L.map("map", {zoomControl:true, maxBoundsViscosity:1}).setView([38.6,-4.5], 5);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {attribution:'© OpenStreetMap', maxZoom:12}).addTo(map);
   isoRenderer = L.canvas({padding:0.5});
   isoLayer = L.layerGroup().addTo(map);
