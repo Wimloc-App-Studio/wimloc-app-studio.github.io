@@ -1,0 +1,45 @@
+name: Données Wimloc Invest
+
+on:
+  schedule:
+    # Toutes les 30 min en semaine (Asie, Europe puis Amérique), et la clôture américaine du vendredi
+    - cron: "13,43 * * * 1-5"
+    - cron: "13 2,9 * * 6"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/invest-data.yml"
+      - "invest/fetch_invest.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: invest-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reprendre l'historique déjà publié
+        run: |
+          mkdir -p /tmp/out
+          git fetch -q --depth=1 origin invest-data || exit 0
+          git show FETCH_HEAD:data.json > /tmp/out/data.json || rm -f /tmp/out/data.json
+      - name: Récupérer bourse, changes et taux
+        run: python3 invest/fetch_invest.py /tmp/out
+      - name: Publier sur la branche invest-data
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd /tmp/out
+          git init -q -b invest-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898341+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Données Invest $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" invest-data
