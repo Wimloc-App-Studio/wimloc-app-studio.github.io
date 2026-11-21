@@ -94,6 +94,15 @@
   #tab-div th,#tab-div td,#tab-div-passe th,#tab-div-passe td{padding:8px 7px}
   .plus{align-self:flex-start}
   #tab-mvt th:nth-child(2),#tab-mvt td:nth-child(2){text-align:left}
+  .carte-chaleur{position:relative;width:100%;border-radius:14px;overflow:hidden;background:#2a1a16;user-select:none;-webkit-user-select:none}
+  .cc-groupe{position:absolute;box-sizing:border-box}
+  .cc-groupe>.cc-titre{position:absolute;left:0;right:0;top:0;height:20px;padding:2px 6px;font-size:.72rem;font-weight:700;color:#fff;background:rgba(20,10,8,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1}
+  .cc-case{position:absolute;box-sizing:border-box;border:1px solid #2a1a16;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;overflow:hidden;padding:2px;cursor:pointer;line-height:1.15;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .cc-case:hover,.cc-case:focus-visible{outline:2px solid var(--creme);outline-offset:-3px;z-index:2}
+  .cc-case b{font-family:var(--rond);font-weight:700;font-size:var(--t,.9rem);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .cc-case span{font-size:calc(var(--t,.9rem)*.88);font-variant-numeric:tabular-nums}
+  .cc-echelle{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--brun-doux);flex-wrap:wrap}
+  .cc-echelle .degrade{flex:1;min-width:160px;max-width:320px;height:10px;border-radius:999px}
   @media (max-width:640px){
     .cartes thead{display:none}
     .cartes,.cartes tbody,.cartes tfoot{display:block}
@@ -138,6 +147,17 @@
   <h3>Performances</h3>
   <div class="defile"><table id="tab-perf" class="cartes"></table></div>
   <p class="note">Performance « pondérée par le temps » : l'argent ajouté ou retiré par les achats et les ventes ne la fausse pas, elle mesure ce qu'a rapporté chaque euro investi, y compris sur les titres vendus depuis (Fortinet, Medtronic…). Dividendes non inclus, comme pour les indices (indices de prix). Le S&P 500 et le Nasdaq sont convertis en euros au taux BCE de chaque jour, pour mesurer ce qu'aurait rapporté un euro placé sur ces indices, effet du dollar compris. Le calcul « lignes actuelles seulement » suppose que tu détenais tes titres d'aujourd'hui dès le début de la période : il ignore donc les gains déjà encaissés lors des ventes.</p>
+</div></section>
+
+<section class="bloc bande" id="carte"><div class="col">
+  <h2>Carte du portefeuille</h2>
+  <p>Chaque rectangle est une ligne : sa surface correspond à son poids dans le portefeuille, sa couleur à l'évolution de son cours en euros sur la période choisie. Les lignes sont regroupées par secteur.</p>
+  <div class="carte">
+    <div class="outils"><div class="pilules" role="group" aria-label="Période de la carte" id="periode-cc"><button type="button" data-v="1j" aria-pressed="true">1 jour</button><button type="button" data-v="1s" aria-pressed="false">1 semaine</button><button type="button" data-v="1m" aria-pressed="false">1 mois</button><button type="button" data-v="1a" aria-pressed="false">1 an</button></div>
+      <div class="cc-echelle" id="cc-echelle"></div></div>
+    <div class="carte-chaleur" id="carte-chaleur" style="margin-top:12px" role="img" aria-label="Carte du portefeuille par secteur"></div>
+    <p class="note" id="cc-resume" style="margin-top:8px"></p>
+  </div>
 </div></section>
 
 <section class="bloc bande" id="positions"><div class="col">
@@ -555,7 +575,83 @@ function afficherReglages(){
   $("#grille-pru").innerHTML = M.pos.slice().sort((a,b)=>a.nom.localeCompare(b.nom)).map(p => `<label>${esc(p.nom)}<input type="number" step="0.01" data-pru="${p.sym}" value="${LOCAL.pru[p.sym] ?? ""}" placeholder="${p.pru!=null?nf(p.pru,2):""}"></label>`).join("");
 }
 
-function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherPositions(); afficherDividendes(); afficherMouvements(); afficherReglages(); }
+/* ---------- carte de chaleur ---------- */
+function squarify(items, x, y, w, h){ // items: [{v,...}] triés décroissants ; renvoie [{...item, x,y,w,h}]
+  const out = [], tot = items.reduce((t,i)=>t+i.v,0); if (!tot || w <= 0 || h <= 0) return out;
+  const k = w*h/tot; let rest = items.map(i => ({...i, a:i.v*k}));
+  while (rest.length){
+    const court = Math.min(w,h); let ligne = [rest[0]], i = 1;
+    const pire = L => { const s = L.reduce((t,r)=>t+r.a,0), mx = Math.max(...L.map(r=>r.a)), mn = Math.min(...L.map(r=>r.a)); return Math.max(court*court*mx/(s*s), s*s/(court*court*mn)); };
+    while (i < rest.length && pire([...ligne, rest[i]]) <= pire(ligne)){ ligne.push(rest[i]); i++; }
+    const s = ligne.reduce((t,r)=>t+r.a,0);
+    if (w >= h){ const lw = s/h; let yy = y; ligne.forEach(r => { const rh = r.a/lw; out.push({...r, x, y:yy, w:lw, h:rh}); yy += rh; }); x += lw; w -= lw; }
+    else { const lh = s/w; let xx = x; ligne.forEach(r => { const rw = r.a/lh; out.push({...r, x:xx, y, w:rw, h:lh}); xx += rw; }); y += lh; h -= lh; }
+    rest = rest.slice(i);
+  }
+  return out;
+}
+const CC = {"1j":{lib:"aujourd'hui", max:3}, "1s":{lib:"sur 1 semaine", jours:7, max:6}, "1m":{lib:"sur 1 mois", mois:1, max:12}, "1a":{lib:"sur 1 an", mois:12, max:40}};
+function evolLigne(p, per){
+  if (per === "1j") return p.varJp;
+  const c = CC[per], ref = c.jours ? ajJ(AUJ, -c.jours) : ajM(AUJ, -c.mois);
+  const c0 = coursA(p.sym, ref), f0 = fxA(p.dev, ref), f1 = fxA(p.dev, AUJ);
+  if (!c0 || !f0 || !p.cours || !f1) return null;
+  const debut = PX.titres[p.sym]?.hist?.[0]?.[0]; if (debut && debut > ref) return null;
+  return ((p.cours/f1)/(c0/f0) - 1) * 100;
+}
+function couleurEvol(v, max){
+  if (v == null) return "var(--brun-doux)";
+  const t = Math.min(1, Math.abs(v)/max), pct = Math.round(Math.pow(t, 0.75)*100);
+  return `color-mix(in oklab, ${v >= 0 ? "#1f8a4c" : "#c8322a"} ${pct}%, #5d5754)`;
+}
+function afficherCarte(){
+  const el = $("#carte-chaleur"), per = ui.cc || "1j", cfg = CC[per];
+  const W = el.clientWidth || 600, H = Math.round(W < 560 ? W*1.25 : Math.min(620, W*0.6));
+  el.style.height = H + "px";
+  const lignes = M.pos.map(p => ({...p, ev: evolLigne(p, per)}));
+  const grp = {}; lignes.forEach(p => (grp[p.secteur] = grp[p.secteur] || []).push(p));
+  const groupes = Object.entries(grp).map(([nom, L]) => ({nom, L: L.sort((a,b)=>b.val-a.val), v: L.reduce((t,p)=>t+p.val,0)})).sort((a,b)=>b.v-a.v);
+  const rg = squarify(groupes, 0, 0, W, H);
+  let html = "";
+  for (const g of rg){
+    const ok = g.L.filter(p => p.ev != null), evg = ok.length ? ok.reduce((t,p)=>t+p.ev*p.val,0)/ok.reduce((t,p)=>t+p.val,0) : null;
+    const titre = g.h > 44 && g.w > 50;
+    html += `<div class="cc-groupe" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px">${titre ? `<div class="cc-titre">${esc(g.nom)} · ${sgn(evg,1)}</div>` : ""}`;
+    const off = titre ? 20 : 0;
+    for (const c of squarify(g.L.map(p => ({...p, v:p.val})), 0, off, g.w, g.h - off)){
+      const nom = c.nom.replace(/ \((classe [AC]|ADR)\)/, m => m.includes("classe") ? " " + m.slice(-2,-1) : "");
+      const tAire = Math.sqrt(c.w*c.h)/90, tLarg = (c.w - 8) / (nom.length * 0.58 * 16);
+      const t = Math.max(.6, Math.min(1.25, tAire, Math.max(tLarg, .6)));
+      const montrerNom = c.w > 40 && c.h > 28, montrerPct = c.w > 30 && c.h > 16;
+      html += `<div class="cc-case" tabindex="0" data-sym="${esc(c.sym)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;background:${couleurEvol(c.ev, cfg.max)};--t:${t}rem" title="${esc(c.nom)} : ${c.ev==null?"donnée indisponible":sgn(c.ev)} ${cfg.lib} · ${eur(c.val)} (${nf(c.poids,1)} %)">
+        ${montrerNom ? `<b>${esc(nom)}</b>` : ""}${montrerPct ? `<span>${c.ev==null?"—":sgn(c.ev,c.w>70?2:1)}</span>` : ""}</div>`;
+    }
+    html += "</div>";
+  }
+  el.innerHTML = html;
+  const ech = [-cfg.max, -cfg.max/2, 0, cfg.max/2, cfg.max];
+  $("#cc-echelle").innerHTML = `<span>${sgn(-cfg.max,0)}</span><span class="degrade" style="background:linear-gradient(90deg,${ech.map(v=>couleurEvol(v,cfg.max)).join(",")})"></span><span>${sgn(cfg.max,0)}</span>`;
+  const ok = lignes.filter(p => p.ev != null), moy = ok.reduce((t,p)=>t+p.ev*p.val,0)/ok.reduce((t,p)=>t+p.val,0);
+  const tri = [...ok].sort((a,b)=>b.ev-a.ev), hausse = ok.filter(p=>p.ev>0).length;
+  $("#cc-resume").innerHTML = `Lignes actuelles ${cfg.lib} : <b class="${cls(moy)}">${sgn(moy)}</b> en moyenne pondérée · ${hausse} en hausse, ${ok.length-hausse} en baisse · meilleure : ${esc(tri[0]?.nom)} (${sgn(tri[0]?.ev,1)}) · pire : ${esc(tri[tri.length-1]?.nom)} (${sgn(tri[tri.length-1]?.ev,1)}).` + (lignes.length > ok.length ? " Les lignes en brun n'ont pas d'historique suffisant." : "");
+  // bulle au toucher / survol
+  let bulle = null;
+  const fermer = () => { if (bulle){ bulle.remove(); bulle = null; } };
+  el.querySelectorAll(".cc-case").forEach(c => {
+    const ouvrir = () => { fermer(); const p = lignes.find(x => x.sym === c.dataset.sym);
+      bulle = document.createElement("div"); bulle.className = "bulle";
+      bulle.innerHTML = `<b>${esc(p.nom)}</b><br>${p.ev==null?"—":sgn(p.ev)} ${cfg.lib}<br>${eur(p.val)} · ${nf(p.poids,1)} % du portefeuille<br>Cours : ${nf(p.cours, p.cours<10?3:2)} ${p.dev}`;
+      el.appendChild(bulle);
+      const r = c.getBoundingClientRect(), z = el.getBoundingClientRect(), bw = bulle.offsetWidth, bh = bulle.offsetHeight;
+      let x = r.left - z.left + r.width/2 - bw/2, y = r.top - z.top - bh - 6; if (y < 0) y = r.bottom - z.top + 6;
+      bulle.style.left = Math.max(4, Math.min(z.width - bw - 4, x)) + "px"; bulle.style.top = Math.min(z.height - bh - 4, Math.max(4, y)) + "px"; };
+    c.addEventListener("pointerenter", e => { if (e.pointerType === "mouse") ouvrir(); });
+    c.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") fermer(); });
+    c.addEventListener("click", ouvrir); c.addEventListener("focus", ouvrir); c.addEventListener("blur", fermer);
+  });
+}
+
+function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes(); afficherMouvements(); afficherReglages(); }
 
 /* ---------- saisie ---------- */
 // Frais de courtage typiques : 3 + 0,10 % (plafond 20, dans la devise du marché), change 0,5 % hors euro,
@@ -646,8 +742,8 @@ function pilules(id, cle, apres){
   document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => {
     document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x === b)); ui[cle] = b.dataset.v; apres(); }));
 }
-pilules("mode-evo","evoMode",afficherEvolution); pilules("periode-evo","evoPer",afficherEvolution); pilules("mode-rep","rep",afficherPositions);
-let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherDividendes(); } }, 200); });
+pilules("mode-evo","evoMode",afficherEvolution); pilules("periode-cc","cc",afficherCarte); pilules("periode-evo","evoPer",afficherEvolution); pilules("mode-rep","rep",afficherPositions);
+let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherCarte(); afficherDividendes(); } }, 200); });
 
 async function demarrer(){
   chargerLocal();
