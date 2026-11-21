@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Wimloc Invest · Les marchés en un coup d'œil</title>
 <meta name="description" content="Wimloc Invest : les grands indices boursiers (CAC 40, IBEX 35, DAX, S&P 500, Nikkei…), l'euro face au dollar et au yuan, et les taux d'État à 10 ans de la France, l'Allemagne, l'Espagne, les États-Unis, le Royaume-Uni et le Japon.">
-<link rel="icon" href="../favicon.ico" sizes="48x48">
-<link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="../images/icone-192.png">
-<link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#57312a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wimloc Invest">
 <link rel="stylesheet" href="../style.css">
 <style>
   :root{--hausse:#2c7a4b;--baisse:#b3361e;--plat:var(--brun-doux)}
@@ -55,12 +57,14 @@
   .avert{font-size:.88rem;color:var(--brun-doux)}
   .vide{color:var(--brun-doux);font-style:italic}
   @media (max-width:520px){.grille{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tuile{padding:12px 12px 8px;border-radius:16px}.valeur{font-size:1.25rem}.taux .valeur{font-size:1.35rem}.barres .rang{grid-template-columns:96px minmax(0,1fr) 56px}.tuile .nom{white-space:normal;line-height:1.25}}
+  .installer{font:inherit;font-family:var(--rond);font-weight:700;font-size:.85rem;background:var(--ciel-fonce);color:#fff;border:0;border-radius:999px;padding:6px 14px;cursor:pointer;margin-left:6px}
+  .installer svg{width:14px;height:14px;vertical-align:-2px;margin-right:5px}
 </style>
 </head>
 <body>
 <header class="haut bande"><div class="col">
   <a class="marque" href="./"><img src="../images/marque_claire.png" alt="">Wimloc Invest<small>par Wimloc App Studio</small></a>
-  <nav><a href="#bourses">Bourses</a><a href="#changes">Changes</a><a href="#taux">Taux à 10 ans</a><a href="portefeuille/">Mon portefeuille fictif</a></nav>
+  <nav><a href="#bourses">Bourses</a><a href="#changes">Changes</a><a href="#taux">Taux à 10 ans</a><a href="portefeuille/">Mon portefeuille fictif</a><button class="installer" id="btn-installer" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Installer l'appli</button></nav>
 </div></header>
 
 <main>
@@ -255,6 +259,16 @@ document.querySelectorAll(".periodes button").forEach(b => b.addEventListener("c
 }));
 charger();
 setInterval(charger, 5 * 60 * 1000);
+</script>
+<script>
+// Appli : service worker et bouton « Installer l'appli »
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js", {scope: "./"}).catch(() => {}));
+(() => {
+  let invite = null; const b = document.getElementById("btn-installer");
+  addEventListener("beforeinstallprompt", e => { e.preventDefault(); invite = e; b.hidden = false; });
+  b.addEventListener("click", async () => { if (!invite) return; invite.prompt(); await invite.userChoice; invite = null; b.hidden = true; });
+  addEventListener("appinstalled", () => { b.hidden = true; });
+})();
 </script>
 </body>
 </html>

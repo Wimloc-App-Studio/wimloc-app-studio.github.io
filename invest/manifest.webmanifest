@@ -1,0 +1,24 @@
+{
+  "id": "/invest/",
+  "name": "Wimloc Invest",
+  "short_name": "Wimloc Invest",
+  "description": "Les marchés en un coup d'œil et le suivi de ton portefeuille fictif.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fdf8ee",
+  "theme_color": "#57312a",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["finance"],
+  "icons": [
+    {"src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Marchés", "url": "./", "icons": [{"src": "icone-192.png", "sizes": "192x192"}]},
+    {"name": "Mon portefeuille fictif", "short_name": "Portefeuille", "url": "./portefeuille/", "icons": [{"src": "icone-192.png", "sizes": "192x192"}]}
+  ]
+}
