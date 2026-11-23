@@ -113,10 +113,14 @@
   <p>© 2026 Wimloc App Studio. Ce site ne dépose aucun cookie et ne mesure pas les visites.</p>
 </div></footer>
 
+<script src="direct.js"></script>
 <script>
 "use strict";
 const URL_DONNEES = "https://raw.githubusercontent.com/Wimloc-App-Studio/wimloc-app-studio.github.io/invest-data/data.json";
 const ORDRE = ["cac40","ibex35","dax","stoxx50","ftse100","sp500","dow","nasdaq","nikkei","shanghai","hangseng","or","brent","eurusd","eurcny","usdcny","fr10","de10","es10","us10","uk10","jp10"];
+const CNBC = {cac40:".FCHI", ibex35:".IBEX", dax:".GDAXI", stoxx50:".STOXX50E", ftse100:".FTSE", sp500:".SPX", dow:".DJI", nasdaq:".IXIC", nikkei:".N225", shanghai:".SSEC", hangseng:".HSI",
+  eurusd:"EUR=", eurcny:"EURCNY=", usdcny:"CNY=", or:"@GC.1", brent:"@LCO.1", fr10:"FR10Y", de10:"DE10Y", es10:"ES10Y", us10:"US10Y", uk10:"GB10Y", jp10:"JP10Y"};
+let direct = null;
 const DRAPEAU = {fr10:"🇫🇷",de10:"🇩🇪",es10:"🇪🇸",us10:"🇺🇸",uk10:"🇬🇧",jp10:"🇯🇵"};
 // Heures d'ouverture (heure locale de la place), jours fériés non pris en compte
 const PLACE = {
@@ -235,8 +239,8 @@ function afficher(){
   });
   document.querySelectorAll(".spark").forEach(survol);
   taux();
-  const d = new Date(donnees.updated);
-  document.getElementById("maj").textContent = "Mis à jour le " + d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}) + " à " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + " (cours éventuellement différés de 15 min).";
+  const d = new Date(direct || donnees.updated);
+  document.getElementById("maj").textContent = (direct ? "Cours en direct, actualisés chaque minute · dernière mise à jour à " : "Mis à jour le " + d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"}) + " à ") + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + " (cours éventuellement différés de 15 min).";
   const l = new Set(Object.values(donnees.items).map(i => i.src));
   if (Object.values(donnees.items).some(i => i.ecb)) l.add("Banque centrale européenne (fixing)");
   const src = [...l].join(", ");
@@ -251,7 +255,22 @@ async function charger(){
   } catch (e) {
     if (!donnees) document.getElementById("maj").textContent = "Les données ne sont pas encore disponibles. Réessayez dans quelques minutes.";
   }
+  await enDirect();
 }
+async function enDirect(){ // cours du moment, directement depuis le navigateur
+  if (!donnees || document.hidden) return;
+  const q = await coursDirect(Object.values(CNBC)); let n = 0;
+  for (const [id, sym] of Object.entries(CNBC)){
+    const it = donnees.items[id], x = q[sym]; if (!it || !x) continue;
+    it.price = x.last; if (x.prev != null) it.prev = x.prev; it.time = x.time; it.src = "CNBC"; delete it.stale; delete it.monthly; delete it.asof;
+    const jourC = (x.time || new Date().toISOString()).slice(0,10);
+    it.hist = it.hist || []; if (it.hist.length && it.hist[it.hist.length-1][0] === jourC) it.hist[it.hist.length-1][1] = x.last; else it.hist.push([jourC, x.last]);
+    n++;
+  }
+  if (n){ direct = Date.now(); afficher(); }
+}
+setInterval(enDirect, 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) enDirect(); });
 
 document.querySelectorAll(".periodes button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".periodes button").forEach(x => x.setAttribute("aria-pressed", x === b));

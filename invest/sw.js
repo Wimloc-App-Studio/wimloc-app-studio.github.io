@@ -1,6 +1,6 @@
 // Wimloc Invest : réseau d'abord, copie locale si hors ligne.
-const CACHE = "wimloc-invest-v1";
-const BASE = ["./", "./portefeuille/", "./portefeuille/portefeuille.json", "../style.css", "./icone-192.png", "./icone-512.png", "./manifest.webmanifest", "../images/marque_claire.png"];
+const CACHE = "wimloc-invest-v2";
+const BASE = ["./", "./direct.js", "./portefeuille/", "./portefeuille/portefeuille.json", "../style.css", "./icone-192.png", "./icone-512.png", "./manifest.webmanifest", "../images/marque_claire.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(BASE)).catch(() => {}).then(() => self.skipWaiting()));
 });

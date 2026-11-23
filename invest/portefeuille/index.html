@@ -235,11 +235,12 @@
 
 <footer class="pied bande"><div class="col">
   <p class="avert">Portefeuille fictif présenté à titre indicatif, à partir de cours éventuellement différés. Ce n'est pas un conseil en investissement ou fiscal.</p>
-  <p>Sources des cours : CNBC ; taux de change : Banque centrale européenne.</p>
+  <p>Sources des cours : CNBC, en direct ; historique des taux de change : Banque centrale européenne.</p>
   <div class="ligne"><a href="../">Wimloc Invest · Marchés</a><a href="../../fr/">Wimloc App Studio</a><a href="../../legal.html#fr">Mentions légales</a></div>
   <p>© 2026 Wimloc App Studio. Ce site ne dépose aucun cookie et ne mesure pas les visites.</p>
 </div></footer>
 
+<script src="../direct.js"></script>
 <script>
 "use strict";
 const RAW = "https://raw.githubusercontent.com/Wimloc-App-Studio/wimloc-app-studio.github.io/invest-data/";
@@ -750,13 +751,31 @@ function pilules(id, cle, apres){
 pilules("mode-evo","evoMode",afficherEvolution); pilules("periode-cc","cc",afficherCarte); pilules("periode-evo","evoPer",afficherEvolution); pilules("mode-rep","rep",afficherPositions);
 let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherCarte(); afficherDividendes(); } }, 200); });
 
+const FX_CNBC = {USD:"EUR=", GBP:"EURGBP=", DKK:"EURDKK=", CAD:"EURCAD=", JPY:"EURJPY=", CHF:"EURCHF=", CNY:"EURCNY="};
+let direct = null;
+async function enDirect(){ // cours et changes du moment, directement depuis le navigateur
+  if (!PX || document.hidden) return;
+  const syms = [...new Set([...Object.keys(PX.titres), ...Object.keys(titres())])].filter(s => !s.startsWith("__"));
+  const q = await coursDirect([...syms, ...Object.values(FX_CNBC)]); let n = 0;
+  for (const s of syms){ const x = q[s]; if (!x) continue;
+    const p = PX.titres[s] = PX.titres[s] || {hist:[], dev:x.dev};
+    p.last = x.last; if (x.prev != null) p.prev = x.prev; p.time = x.time; delete p.stale; n++; }
+  for (const [c, sym] of Object.entries(FX_CNBC)){ const x = q[sym]; if (x && PX.fx[c]) PX.fx[c].live = x.last; }
+  if (!n) return;
+  direct = Date.now(); PX.updated = new Date(direct).toISOString();
+  calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes();
+  $("#maj").textContent = `Cours en direct, actualisés chaque minute · dernière mise à jour à ${new Date(direct).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} (éventuellement différés de 15 min).`;
+}
+setInterval(enDirect, 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) enDirect(); });
+
 async function demarrer(){
   chargerLocal();
   try {
     const [a, b] = await Promise.all([fetch("portefeuille.json", {cache:"no-store"}), fetch(RAW + "prices.json?t=" + Math.floor(Date.now()/60000), {cache:"no-store"})]);
     if (!a.ok || !b.ok) throw new Error("http");
     PF = await a.json(); PX = await b.json();
-    tout();
+    tout(); enDirect();
   } catch(e){ console.error(e); $("#maj").textContent = "Impossible de charger les données. Réessaie dans quelques minutes."; }
 }
 demarrer();
