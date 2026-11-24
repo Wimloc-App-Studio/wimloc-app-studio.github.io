@@ -1,0 +1,36 @@
+=== sa_acn
+200 90930
+=== sa_tte
+200 90590
+=== sa_bhp
+200 85458
+=== nasdaq_acn
+200 498
+=== yahoo_div
+200 5732
+=== cnbc_div
+200 1803
+=== digrin
+200 82590
+--- cnbc_div.body
+ex_date[^,]{0,80} ['ex_date":"10/13/2026"', 'ex_date_today":"N"']
+{"FormattedQuoteResult":{"FormattedQuote":[{"symbol":"ACN","symbolType":"symbol","code":0,"name":"Accenture PLC","shortName":"ACN","onAirName":"Accenture","altName":"Accenture PLC","last":"222.29","last_timedate":"11/23/26 EST","last_time":"2026-11-23","changetype":"UP","type":"STOCK","subType":"Com
+--- digrin.body
+divid[^"]{0,60}growt ['dividend_growth_rate/">DGR', 'dividend growth rate for stock TotalEnergies SE (TTE.PA) for past three years is ', 'dividend growth rate predictions based on history\n              and split, spin-off and special']
+<!DOCTYPE html>  <html lang="en"> <head>     <meta charset="utf-8">     <title>TotalEnergies SE dividends | Digrin</title>     <meta name="viewport" content="width=device-width, initial-scale=1.0">     <meta name="theme-color" content="#212529">     <link rel="manifest" href="/manifest.json">     <l
+--- nasdaq_acn.body
+{"data":{"dividendHeaderValues":[{"label":"Ex-Dividend Date","value":"N/A"},{"label":"Dividend Yield","value":"N/A"},{"label":"Annual Dividend","value":"N/A"},{"label":"P/E Ratio","value":"N/A"}],"exDividendDate":"N/A","dividendPaymentDate":"N/A","yield":"N/A","annualizedDividend":"N/A","payoutRatio
+--- sa_acn.body
+Dividend Growth[^<]{ ['Dividend Growth<span class="hidden bp:visible">(1Y)']
+divid[^"]{0,60}growt ['dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics.","url":"https://stockanalysis.com/stocks/acn/dividend/"}']
+<!doctype html> <html lang="en"> 	<head> 		<meta charset="utf-8" /> 		<meta name="viewport" content="width=device-width, initial-scale=1" /> 		<!--12qhfyh--><!--[0--><link rel="preconnect" href="https://securepubads.g.doubleclick.net"/> <link rel="preconnect" href="https://u5.investingchannel.com"/>
+--- sa_bhp.body
+Dividend Growth[^<]{ ['Dividend Growth<span class="hidden bp:visible">(1Y)']
+divid[^"]{0,60}growt ['dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics.","url":"https://stockanalysis.com/quote/lon/BHP/dividend/"}']
+<!doctype html> <html lang="en"> 	<head> 		<meta charset="utf-8" /> 		<meta name="viewport" content="width=device-width, initial-scale=1" /> 		<!--12qhfyh--><!--[0--><link rel="preconnect" href="https://securepubads.g.doubleclick.net"/> <link rel="preconnect" href="https://u5.investingchannel.com"/>
+--- sa_tte.body
+Dividend Growth[^<]{ ['Dividend Growth<span class="hidden bp:visible">(1Y)']
+divid[^"]{0,60}growt ['dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics."/>', 'dividend history, yield, key dates, growth and other metrics.","url":"https://stockanalysis.com/quote/epa/TTE/dividend/"}']
+<!doctype html> <html lang="en"> 	<head> 		<meta charset="utf-8" /> 		<meta name="viewport" content="width=device-width, initial-scale=1" /> 		<!--12qhfyh--><!--[0--><link rel="preconnect" href="https://securepubads.g.doubleclick.net"/> <link rel="preconnect" href="https://u5.investingchannel.com"/>
+--- yahoo_div.body
+{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"TTE.PA","exchangeName":"PAR","fullExchangeName":"Paris","instrumentType":"EQUITY","firstTradeDate":946886400,"regularMarketTime":1795514882,"hasPrePostMarketData":false,"gmtoffset":3600,"timezone":"CET","exchangeTimezoneName":"Europe/Paris","re
