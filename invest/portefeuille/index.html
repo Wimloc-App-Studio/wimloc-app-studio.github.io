@@ -180,6 +180,12 @@
   <p>Ce que tu touches vraiment : retenue du pays d'origine, puis retenue espagnole de 19 % sur le reste, puis frais de change pour les dividendes en devises. La colonne « Récupérable » est la part de la retenue étrangère que tu peux déduire dans ta déclaration d'IRPF (déduction pour double imposition internationale).</p>
   <div class="chiffres" id="chiffres-div"></div>
   <div class="carte">
+    <div class="outils"><h3>D'où viennent tes dividendes</h3><div class="cc-echelle" id="cd-echelle"></div></div>
+    <p class="note" style="margin-top:4px">Surface : part de chaque entreprise dans tes dividendes nets des 12 prochains mois. Couleur : évolution du dividende par action sur un an.</p>
+    <div class="carte-chaleur" id="carte-div" style="margin-top:10px" role="img" aria-label="Répartition des dividendes par entreprise"></div>
+    <p class="note" id="cd-resume" style="margin-top:8px"></p>
+  </div>
+  <div class="carte">
     <div class="outils"><h3>Net perçu par mois</h3><div class="legende"><span>À venir</span><span style="opacity:.6">Déjà versé (2026)</span></div></div>
     <div class="graph" id="graph-div"></div>
   </div>
@@ -657,7 +663,61 @@ function afficherCarte(){
   });
 }
 
-function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes(); afficherMouvements(); afficherReglages(); }
+/* ---------- carte des dividendes ---------- */
+function croissanceDiv(sym){ // évolution du dividende par action sur un an, en %
+  const p = PX.titres[sym] || {}, t = titres()[sym] || {}, f = t.freq || 0, d = p.divs || [];
+  if (f && d.length >= 2*f){ // les f derniers versements comparés aux f précédents
+    const der = d.slice(-f).reduce((a,x)=>a+x[1],0), avant = d.slice(-2*f, -f).reduce((a,x)=>a+x[1],0);
+    if (avant > 0) return {v:(der/avant-1)*100, src:"historique des versements"};
+  }
+  if (p.croissance_sa != null) return {v:p.croissance_sa, src:"stockanalysis.com"};
+  if (t.croissance_div != null) return {v:t.croissance_div, src:"communiqué de la société"};
+  return {v:null, src:""};
+}
+function afficherCarteDiv(){
+  const el = $("#carte-div"), MAXC = 20;
+  const parT = {}; M.dividendes.filter(d => !d.verse).forEach(d => { const o = parT[d.sym] = parT[d.sym] || {sym:d.sym, nom:d.nom, net:0, brut:0, n:0}; o.net += d.net; o.brut += d.brut; o.n++; });
+  const L = Object.values(parT).filter(o => o.net > 0); const tot = L.reduce((a,o)=>a+o.net,0);
+  if (!L.length){ el.innerHTML = '<p class="note" style="padding:12px">Aucun dividende attendu sur les 12 prochains mois.</p>'; return; }
+  L.forEach(o => { const c = croissanceDiv(o.sym); o.cr = c.v; o.crSrc = c.src; o.part = o.net/tot*100; o.secteur = titres()[o.sym]?.secteur || "Autre"; o.v = o.net; });
+  const W = el.clientWidth || 600, H = Math.round(W < 560 ? W*1.05 : Math.min(520, W*0.5)); el.style.height = H + "px";
+  const grp = {}; L.forEach(o => (grp[o.secteur] = grp[o.secteur] || []).push(o));
+  const G = Object.entries(grp).map(([nom, l]) => ({nom, l: l.sort((a,b)=>b.v-a.v), v: l.reduce((a,o)=>a+o.v,0)})).sort((a,b)=>b.v-a.v);
+  let html = "";
+  for (const g of squarify(G, 0, 0, W, H)){
+    const titre = g.h > 44 && g.w > 60;
+    html += `<div class="cc-groupe" style="left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px">${titre ? `<div class="cc-titre">${esc(g.nom)} · ${nf(g.v/tot*100,0)} %</div>` : ""}`;
+    const off = titre ? 20 : 0;
+    for (const c of squarify(g.l, 0, off, g.w, g.h - off)){
+      const nom = c.nom.replace(/ \((classe [AC]|ADR)\)/, m => m.includes("classe") ? " " + m.slice(-2,-1) : "");
+      const t = Math.max(.6, Math.min(1.25, Math.sqrt(c.w*c.h)/90, Math.max((c.w-8)/(nom.length*0.58*16), .6)));
+      const mN = c.w > 40 && c.h > 28, mP = c.w > 30 && c.h > 16, mC = c.h > 52 && c.w > 44;
+      html += `<div class="cc-case" tabindex="0" data-sym="${esc(c.sym)}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;background:${couleurEvol(c.cr, MAXC)};--t:${t}rem">
+        ${mN ? `<b>${esc(nom)}</b>` : ""}${mP ? `<span>${nf(c.part, c.part<10?1:0)} %</span>` : ""}${mC ? `<span style="opacity:.9">div. ${c.cr==null?"—":sgn(c.cr,0)}</span>` : ""}</div>`;
+    }
+    html += "</div>";
+  }
+  el.innerHTML = html;
+  $("#cd-echelle").innerHTML = `<span>${sgn(-MAXC,0)}</span><span class="degrade" style="background:linear-gradient(90deg,${[-MAXC,-MAXC/2,0,MAXC/2,MAXC].map(v=>couleurEvol(v,MAXC)).join(",")})"></span><span>${sgn(MAXC,0)} et +</span>`;
+  const ok = L.filter(o => o.cr != null), pond = ok.reduce((a,o)=>a+o.cr*o.net,0)/ok.reduce((a,o)=>a+o.net,0);
+  const top3 = [...L].sort((a,b)=>b.net-a.net).slice(0,3), haus = ok.filter(o=>o.cr>0.5).length, bais = ok.filter(o=>o.cr<-0.5).length;
+  $("#cd-resume").innerHTML = `Croissance moyenne des dividendes, pondérée par ce qu'ils te rapportent : <b class="${cls(pond)}">${sgn(pond,1)}</b> · ${haus} en hausse, ${ok.length-haus-bais} stables, ${bais} en baisse · tes 3 premiers payeurs (${top3.map(o=>esc(o.nom)).join(", ")}) font ${nf(top3.reduce((a,o)=>a+o.part,0),0)} % du total.`;
+  let bulle = null; const fermer = () => { if (bulle){ bulle.remove(); bulle = null; } };
+  el.querySelectorAll(".cc-case").forEach(c => {
+    const ouvrir = () => { fermer(); const o = L.find(x => x.sym === c.dataset.sym);
+      bulle = document.createElement("div"); bulle.className = "bulle";
+      bulle.innerHTML = `<b>${esc(o.nom)}</b><br>${nf(o.part,1)} % de tes dividendes<br>Net 12 mois : ${eur(o.net,0)} (brut ${eur(o.brut,0)}, ${o.n} versement${o.n>1?"s":""})<br>Dividende sur 1 an : ${o.cr==null?"inconnu":sgn(o.cr,1)}${o.crSrc?` <span style="opacity:.75">· ${o.crSrc}</span>`:""}`;
+      el.appendChild(bulle);
+      const r = c.getBoundingClientRect(), z = el.getBoundingClientRect(), bw = bulle.offsetWidth, bh = bulle.offsetHeight;
+      let y = r.top - z.top - bh - 6; if (y < 0) y = r.bottom - z.top + 6;
+      bulle.style.left = Math.max(4, Math.min(z.width-bw-4, r.left - z.left + r.width/2 - bw/2)) + "px"; bulle.style.top = Math.min(z.height-bh-4, Math.max(4, y)) + "px"; };
+    c.addEventListener("pointerenter", e => { if (e.pointerType === "mouse") ouvrir(); });
+    c.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") fermer(); });
+    c.addEventListener("click", ouvrir); c.addEventListener("focus", ouvrir); c.addEventListener("blur", fermer);
+  });
+}
+
+function tout(){ calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes(); afficherCarteDiv(); afficherMouvements(); afficherReglages(); }
 
 /* ---------- saisie ---------- */
 // Frais de courtage typiques : 3 + 0,10 % (plafond 20, dans la devise du marché), change 0,5 % hors euro,
@@ -749,7 +809,7 @@ function pilules(id, cle, apres){
     document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x === b)); ui[cle] = b.dataset.v; apres(); }));
 }
 pilules("mode-evo","evoMode",afficherEvolution); pilules("periode-cc","cc",afficherCarte); pilules("periode-evo","evoPer",afficherEvolution); pilules("mode-rep","rep",afficherPositions);
-let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherCarte(); afficherDividendes(); } }, 200); });
+let tr; addEventListener("resize", () => { clearTimeout(tr); tr = setTimeout(() => { if (M.serie){ afficherEvolution(); afficherCarte(); afficherDividendes(); afficherCarteDiv(); } }, 200); });
 
 const FX_CNBC = {USD:"EUR=", GBP:"EURGBP=", DKK:"EURDKK=", CAD:"EURCAD=", JPY:"EURJPY=", CHF:"EURCHF=", CNY:"EURCNY="};
 let direct = null;
@@ -763,7 +823,7 @@ async function enDirect(){ // cours et changes du moment, directement depuis le 
   for (const [c, sym] of Object.entries(FX_CNBC)){ const x = q[sym]; if (x && PX.fx[c]) PX.fx[c].live = x.last; }
   if (!n) return;
   direct = Date.now(); PX.updated = new Date(direct).toISOString();
-  calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes();
+  calculer(); afficherChiffres(); afficherEvolution(); afficherCarte(); afficherPositions(); afficherDividendes(); afficherCarteDiv();
   $("#maj").textContent = `Cours en direct, actualisés chaque minute · dernière mise à jour à ${new Date(direct).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})} (éventuellement différés de 15 min).`;
 }
 setInterval(enDirect, 60 * 1000);

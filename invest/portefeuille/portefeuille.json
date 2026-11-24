@@ -248,7 +248,8 @@
    "freq": 1,
    "lag": 3,
    "yahoo": "CAP.PA",
-   "sa": "quote/epa/CAP"
+   "sa": "quote/epa/CAP",
+   "croissance_div": 0.0
   },
   "CVX": {
    "nom": "Chevron",
