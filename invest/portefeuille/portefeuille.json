@@ -154,7 +154,9 @@
    "secteur": "Technologie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 7
+   "lag": 7,
+   "yahoo": "GOOGL",
+   "sa": "stocks/googl"
   },
   "GOOG": {
    "nom": "Alphabet (classe C)",
@@ -163,7 +165,9 @@
    "secteur": "Technologie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 7
+   "lag": 7,
+   "yahoo": "GOOG",
+   "sa": "stocks/goog"
   },
   "ACN": {
    "nom": "Accenture",
@@ -172,7 +176,9 @@
    "secteur": "Technologie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 32
+   "lag": 32,
+   "yahoo": "ACN",
+   "sa": "stocks/acn"
   },
   "BABA": {
    "nom": "Alibaba (ADR)",
@@ -181,7 +187,9 @@
    "secteur": "Commerce en ligne",
    "zone": "Asie",
    "freq": 1,
-   "lag": 30
+   "lag": 30,
+   "yahoo": "BABA",
+   "sa": "stocks/baba"
   },
   "AMZN": {
    "nom": "Amazon",
@@ -205,7 +213,9 @@
    "pays": "FR",
    "secteur": "Industrie",
    "zone": "Zone euro",
-   "freq": 0
+   "freq": 0,
+   "yahoo": "BGO.PA",
+   "sa": "quote/epa/BGO"
   },
   "BHP-GB": {
    "nom": "BHP Group",
@@ -214,7 +224,9 @@
    "secteur": "Matériaux",
    "zone": "Royaume-Uni",
    "freq": 2,
-   "lag": 23
+   "lag": 23,
+   "yahoo": "BHP.L",
+   "sa": "quote/lon/BHP"
   },
   "BKNG": {
    "nom": "Booking Holdings",
@@ -223,7 +235,9 @@
    "secteur": "Consommation",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 25
+   "lag": 25,
+   "yahoo": "BKNG",
+   "sa": "stocks/bkng"
   },
   "CAP-FR": {
    "nom": "Capgemini",
@@ -232,7 +246,9 @@
    "secteur": "Technologie",
    "zone": "Zone euro",
    "freq": 1,
-   "lag": 3
+   "lag": 3,
+   "yahoo": "CAP.PA",
+   "sa": "quote/epa/CAP"
   },
   "CVX": {
    "nom": "Chevron",
@@ -241,7 +257,9 @@
    "secteur": "Énergie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 22
+   "lag": 22,
+   "yahoo": "CVX",
+   "sa": "stocks/cvx"
   },
   "DSY-FR": {
    "nom": "Dassault Systèmes",
@@ -250,7 +268,9 @@
    "secteur": "Logiciels",
    "zone": "Zone euro",
    "freq": 1,
-   "lag": 3
+   "lag": 3,
+   "yahoo": "DSY.PA",
+   "sa": "quote/epa/DSY"
   },
   "ENB": {
    "nom": "Enbridge",
@@ -259,7 +279,9 @@
    "secteur": "Énergie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 17
+   "lag": 17,
+   "yahoo": "ENB",
+   "sa": "stocks/enb"
   },
   "GEV": {
    "nom": "GE Vernova",
@@ -268,7 +290,9 @@
    "secteur": "Industrie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 10
+   "lag": 10,
+   "yahoo": "GEV",
+   "sa": "stocks/gev"
   },
   "GE": {
    "nom": "GE Aerospace",
@@ -277,7 +301,9 @@
    "secteur": "Industrie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 25
+   "lag": 25,
+   "yahoo": "GE",
+   "sa": "stocks/ge"
   },
   "NVO": {
    "nom": "Novo Nordisk B",
@@ -287,7 +313,9 @@
    "zone": "Europe hors euro",
    "freq": 2,
    "lag": 4,
-   "note": "Cours de l'ADR new-yorkais (1 ADR = 1 action B), converti en euros"
+   "note": "Cours de l'ADR new-yorkais (1 ADR = 1 action B), converti en euros",
+   "yahoo": "NOVO-B.CO",
+   "sa": "quote/cph/NOVO.B"
   },
   "RIO-GB": {
    "nom": "Rio Tinto",
@@ -296,7 +324,9 @@
    "secteur": "Matériaux",
    "zone": "Royaume-Uni",
    "freq": 2,
-   "lag": 38
+   "lag": 38,
+   "yahoo": "RIO.L",
+   "sa": "quote/lon/RIO"
   },
   "SGO-FR": {
    "nom": "Saint-Gobain",
@@ -305,7 +335,9 @@
    "secteur": "Industrie",
    "zone": "Zone euro",
    "freq": 1,
-   "lag": 3
+   "lag": 3,
+   "yahoo": "SGO.PA",
+   "sa": "quote/epa/SGO"
   },
   "SFL": {
    "nom": "SFL Corporation",
@@ -314,7 +346,9 @@
    "secteur": "Énergie",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 12
+   "lag": 12,
+   "yahoo": "SFL",
+   "sa": "stocks/sfl"
   },
   "SHELL-NL": {
    "nom": "Shell",
@@ -323,7 +357,9 @@
    "secteur": "Énergie",
    "zone": "Royaume-Uni",
    "freq": 4,
-   "lag": 35
+   "lag": 35,
+   "yahoo": "SHELL.AS",
+   "sa": "quote/ams/SHELL"
   },
   "SONY": {
    "nom": "Sony (ADR)",
@@ -332,7 +368,9 @@
    "secteur": "Technologie",
    "zone": "Asie",
    "freq": 2,
-   "lag": 65
+   "lag": 65,
+   "yahoo": "SONY",
+   "sa": "stocks/sony"
   },
   "TTE-FR": {
    "nom": "TotalEnergies",
@@ -341,7 +379,9 @@
    "secteur": "Énergie",
    "zone": "Zone euro",
    "freq": 4,
-   "lag": 3
+   "lag": 3,
+   "yahoo": "TTE.PA",
+   "sa": "quote/epa/TTE"
   },
   "VIRI-FR": {
    "nom": "Viridien",
@@ -349,7 +389,9 @@
    "pays": "FR",
    "secteur": "Énergie",
    "zone": "Zone euro",
-   "freq": 0
+   "freq": 0,
+   "yahoo": "VIRI.PA",
+   "sa": "quote/epa/VIRI"
   },
   "MDT": {
    "nom": "Medtronic",
@@ -358,7 +400,9 @@
    "secteur": "Santé",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 25
+   "lag": 25,
+   "yahoo": "MDT",
+   "sa": "stocks/mdt"
   },
   "UAA": {
    "nom": "Under Armour",
@@ -391,7 +435,9 @@
    "secteur": "Santé",
    "zone": "Amérique du Nord",
    "freq": 4,
-   "lag": 30
+   "lag": 30,
+   "yahoo": "GEHC",
+   "sa": "stocks/gehc"
   }
  },
  "mouvements": [

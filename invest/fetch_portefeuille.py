@@ -91,6 +91,33 @@ def chart(sym):
     return out
 
 
+def yahoo_dividendes(ysym):
+    """Historique des dividendes (date de détachement, montant par action) sur 4 ans, via Yahoo."""
+    last = None
+    for host in ("query2", "query1"):
+        try:
+            t = get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(ysym)}?range=4y&interval=1mo&events=div", tries=1)
+            res = json.loads(t)["chart"]["result"][0]
+            break
+        except Exception as e:  # noqa: BLE001
+            last = e
+    else:
+        raise last
+    divs = (res.get("events") or {}).get("dividends") or {}
+    out = sorted([dt.datetime.fromtimestamp(int(v["date"]), dt.timezone.utc).date().isoformat(), round(float(v["amount"]), 6)] for v in divs.values())
+    return {"divs": out, "dev_div": (res.get("meta") or {}).get("currency")}
+
+
+def sa_croissance(chemin):
+    """Croissance du dividende sur 1 an affichée par stockanalysis.com (secours)."""
+    import re
+    t = get(f"https://stockanalysis.com/{chemin}/dividend/")
+    m = re.search(r"Dividend Growth.{0,200}?(-?[\d.,]+)%", t, flags=re.S)
+    if not m:
+        raise ValueError("croissance introuvable")
+    return float(m.group(1).replace(",", ""))
+
+
 def ecb():
     z = zipfile.ZipFile(io.BytesIO(get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip", binary=True)))
     text = z.read(z.namelist()[0]).decode("utf-8")
@@ -171,6 +198,31 @@ def main():
         if item["ex"] and item["ex_montant"]:
             ex_hist[item["ex"]] = item["ex_montant"]
         item["ex_hist"] = ex_hist
+        # historique des dividendes : une fois par jour suffit
+        meta = pf.get("titres", {}).get(s, {})
+        if o.get("divs_maj", "") == dt.date.today().isoformat():
+            for k in ("divs", "dev_div", "croissance_sa", "divs_maj"):
+                if k in o:
+                    item[k] = o[k]
+        else:
+            if meta.get("yahoo"):
+                try:
+                    item.update(yahoo_dividendes(meta["yahoo"]))
+                    item["divs_maj"] = dt.date.today().isoformat()
+                except Exception as e:  # noqa: BLE001
+                    err(f"{s} dividendes Yahoo", e)
+                    for k in ("divs", "dev_div"):
+                        if k in o:
+                            item[k] = o[k]
+                time.sleep(0.6)
+            if meta.get("sa") and meta.get("freq"):
+                try:
+                    item["croissance_sa"] = sa_croissance(meta["sa"])
+                except Exception as e:  # noqa: BLE001
+                    err(f"{s} croissance stockanalysis", e)
+                    if "croissance_sa" in o:
+                        item["croissance_sa"] = o["croissance_sa"]
+                time.sleep(0.6)
         titres[s] = item
         print(f"{s:10} {item['last']} {item['dev']} {len(item['hist'])} j")
 
